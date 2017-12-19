@@ -1,0 +1,397 @@
+#% text_encoding = cp1252
+########################################################################
+##
+## Last Saved Time-stamp: <2007-08-29 15:17:00 brad.sileo>
+##
+## Created By: Brad Sileo
+## Date: 06-30-2005
+##
+##
+## Description: 
+##
+## ---------- Revision History -----------
+##
+## -------- end revision history ---------
+########################################################################
+_package mclib
+_pragma(classify_level=basic)
+##  Holds the results of sending an http_request. This is
+## whatever data was returned from the server.
+## You can get several things form this:
+##
+##  resp.smart_result() - returns an object best tailored to
+##                  represent the result, such as a raster_image,
+##                  a string, or a simple_xml_document.
+##
+##  resp.response_status_code  - The HTTP code fo rthe result,
+##                               such as 200, 401, 404, etc..
+##  resp.response_status_phrase- A string for the result, like
+##                               "OK", "Not Found"
+##
+##  The results are parsed into lines of text for general use,
+## but this object also holds onto the raw_data which can be
+## used to process binary results.
+##
+##  There is currently no support for encoding and decoding of
+## MIME data in the result.
+##
+def_slotted_exemplar(:http_response,
+                      {
+			      {:header,_unset},
+			      {:data,_unset},
+			      {:raw_data,_unset}
+		      },
+		      {:sw_component})
+$
+
+_pragma(classify_level=basic)
+## Holds the data received from the server, converted to
+## characters and browken at each line break 
+http_response.define_slot_externally_readable(:data, _false )
+$
+_pragma(classify_level=basic)
+## Holds the data received from the server in the HTTP header,
+## broken for each header line. See header_value().
+http_response.define_slot_externally_readable(:header, _false )
+$
+_pragma(classify_level=basic)
+## Holds the raw bytes received from the server
+http_response.define_slot_externally_readable(:raw_data, _false )
+$
+
+
+http_response.define_property(:data_file_path,:string,
+			      "The path where files are placed",
+			      _true,_true,_unset)
+$
+http_response.define_property(:data_file_name,:string,
+			      "The name of my result file",
+			      _true,_true,_unset)
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_response.new_for(name,framework, a_stream)
+	## returns a new response created from the data in
+	## A_STREAM a text input stream with the response data in it
+	## 
+	##
+
+	# (06-30-2005 Brad Sileo): created.
+	new << _self.new(name,framework)
+	new.init_for(a_stream)
+	>> new
+_endmethod
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_response.init(_gather args)
+	## 
+	## 
+	##
+
+	# (06-30-2005 Brad Sileo): created.
+	.header << rope.new()
+	.data << rope.new()
+	>> _super.init(_scatter args)
+_endmethod
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_response.init_for(a_stream)
+	## 
+	## 
+	##
+
+	# (06-30-2005 Brad Sileo): created.
+	res << rope.new()
+	header? << _true
+	first? << _true 
+	.header << a_header << rope.new()
+	.data << a_data << rope.new()
+	.raw_data << rope.new()
+	line_chars << rope.new()
+	_loop
+		c << _unset 
+		l << a_stream.get()
+		_if l _isnt _unset _then
+			_if header? _is _false
+			_then
+				.raw_data.add_last(l)
+			_endif 
+			c << l.as_character()
+		_endif 
+		_if c _is %newline _orif
+		    c _is _unset 
+		_then
+			cur_line << "".new_from(line_chars)
+			_if first? _is _true 
+			_then
+				first? << _false
+				head << cur_line.split_by(%space)
+				ver << head[1]
+				code << head[2].as_number()
+				_if head.size = 3
+				_then
+					phrase << head[3]
+				_endif 
+			_endif
+			_if cur_line.empty? _andif 
+			    header? _is _true 
+			_then
+				header? << _false
+				# Check the whole header here
+				_continue 
+			_endif
+			_if header? 
+			_then
+				a_header.add_last(cur_line)
+			_else
+				a_data.add_last(cur_line)
+			_endif
+			line_chars.empty()
+		_elif c _is %return
+		_then
+			
+		_else
+			line_chars.add_last(c)
+		_endif
+		_if l _is _unset _then _leave _endif 
+	_endloop
+_endmethod 
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_response.content_type
+	## The type of data shown in my header
+	## 
+	##
+
+	# (06-29-2005 Brad Sileo): created.
+	>> _self.header_value("Content-Type").default("N/A")
+_endmethod
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_response.sub_content_type
+	## returns the right half of the content type, after the slash,
+	## if possible.
+	## 
+	##
+
+	# (06-30-2005 Brad Sileo): created.
+	>> _if (ct << _self.content_type) _isnt _unset _andif
+	    (idx << ct.index_of(%/)) _isnt _unset
+	_then
+		>> ct.slice_to_end(idx+1) 
+	_endif 
+_endmethod
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_response.response_status_code
+	## 
+	## 
+	##
+
+	# (06-30-2005 Brad Sileo): created.
+	_if .header.empty? 
+	_then
+		_return "N/A"
+	_endif
+	>> .header[1].slice_to_end(.header[1].index_of(%space)).as_number()
+_endmethod
+$
+_pragma(classify_level=basic, usage={redefinable})
+_method http_response.response_reason_phrase
+	## 
+	## 
+	##
+
+	# (06-30-2005 Brad Sileo): created.
+	_if .header.empty? 
+	_then
+		_return "N/A"
+	_endif
+	rc << _self.response_status_code.write_string
+	>> .header[1].slice_to_end(.header[1].index_of_seq(rc)+1+rc.size)
+_endmethod
+$
+_pragma(classify_level=basic, usage={redefinable})
+_method http_response.server_name
+	## The type of data shown in my header
+	## 
+	##
+
+	# (06-29-2005 Brad Sileo): created.
+	>> _self.header_value("Server")
+_endmethod
+$
+_pragma(classify_level=basic, usage={redefinable})
+_method http_response.header_value(name)
+	## returns the name for the header data called NAME
+	## 
+	##
+
+	# (06-29-2005 Brad Sileo): created.
+	_for line _over .header.fast_elements()
+	_loop
+		#debug show(line.lowercase,name.lowercase,line.lowercase.index_of_seq(name.lowercase))
+		_if line.lowercase.index_of_seq(name.lowercase) = 1
+		_then
+			_return line.slice_to_end(line.index_of(%:)+2)
+		_endif
+	_endloop
+_endmethod
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_response.result_string
+	## returns the result as a single string
+	## 
+	##
+
+	# (06-29-2005 Brad Sileo): created.
+	st << internal_text_output_stream.new()
+	_for a_line _over .data.fast_elements()
+	_loop
+		st.write(a_line)
+	_endloop
+	>> st.string
+_endmethod
+$
+
+http_response.define_shared_constant(:xml_content_types,
+				     equality_set.new_with(
+					     "text/xml",
+					     "text/rdf+xml"
+						  ),
+				     :public)
+$
+_pragma(classify_level=basic, usage={redefinable})
+## Maps content types to document object classes
+http_response.define_shared_constant(:xml_document_types,
+				     equality_hash_table.new(),
+				     :public)
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_response.smart_result(_optional content_type_override)
+	## Returns a result object best suitable for the content type
+	## of the data.
+	##
+	## Currently handles:
+	##   text/html as a string 
+	##   text/xml as a simple_xml
+	##   image/* as a raster_pattern or path to a file
+
+	# (06-29-2005 Brad Sileo): created.
+	ct << content_type_override.default(_self.content_type)
+	>> _if _self.xml_content_types.includes?(ct) _orif
+	       _self.result_string.slice(1,5) = "<?xml"
+	   _then
+		   _if (doc_exemplar << _self.xml_document_types[ct]) _isnt _unset
+		   _then 
+			   doc << doc_exemplar.new(_unset,_unset)
+		   _endif 
+		   >> simple_xml.read_document_from(_self.result_string.read_stream(),_unset,doc)
+	   _elif (ct << _self.content_type) = "text/html"
+	   _then
+		   >> _self.result_string
+	   _elif ct.index_of_seq("image/") = 1
+	   _then
+		   >> _self.raster_image()
+	   _else 
+		   >> _self.result_string
+	   _endif
+_endmethod
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_response.raster_image()
+	## returns a raster_image object based on my data, which must
+	## be of a type that can be handled by raster_image.new_from_file()
+	## for other types, a reference to a file created to represent
+	## the image is returned.
+	##
+
+	# (06-30-2005 Brad Sileo): created.
+	_if (file_part << _self.data_file_name) _is _unset
+	_then 
+		_if (fw << _self.framework) _isnt _unset 
+		_then
+			file_part << fw.filename
+		_else
+			file_part << write_string("http_image.",_self.sub_content_type)
+		_endif
+	_endif 
+	fname << system.name_new_file(system.pathname_from_components(file_part,
+								      _self.data_file_path
+								      ))
+	st << external_binary_output_stream.new(fname)
+	ok? << _false 
+	_protect
+		_for c _over .raw_data.fast_elements()
+		_loop
+			st.put(c)
+		_endloop
+		ok? << _true 
+	_protection 
+		st.close()
+	_endprotect
+	>> _if ok? _is _true 
+	_then
+		>> _try
+			>> raster_image.new_from_file(fname)
+		_when magik_prim_error
+			>> fname
+		_endtry 
+	_endif
+_endmethod
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_response.show_on(a_stream)
+	## 
+	## 
+	##
+
+	# (06-30-2005 Brad Sileo): created.
+	a_stream.write(_self.class_name.default("?"),
+		       %(,
+		       _self.response_status_code.default("?"),
+		       %space,
+		       _self.response_reason_phrase.default("?"),
+		       %space,
+		       %",
+		       _self.content_type,
+		       %",
+		       %)
+		 )
+_endmethod
+$
+_pragma(classify_level=basic, usage={redefinable})
+_method http_response.data_file_path
+	## The path for my output data files, defaults to temp if my
+	## proeprty is not set
+	## 
+	##
+
+	# (06-30-2005 Brad Sileo): created.
+	>> _self.property(:data_file_path).default(system.temp_directory_name)
+_endmethod
+$
+_pragma(classify_level=debug, usage={redefinable})
+_method http_response.show_header(_optional a_stream)
+	## 
+	## 
+	##displays my header
+
+	# (07-15-2005 Brad Sileo): created.
+	_dynamic !output!
+	a_stream << a_stream.default(!output!)
+	_for elem _over .header.fast_elements()
+	_loop
+		a_stream.write(elem,%newline)
+	_endloop
+_endmethod
+$

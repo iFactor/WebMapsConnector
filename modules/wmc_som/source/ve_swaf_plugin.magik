@@ -1,0 +1,1970 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+_pragma(classify_level=advanced)
+## 
+def_slotted_exemplar(:ve_swaf_plugin,
+		   {
+			   {:soc,_unset},
+			   {:aerial_on?,_unset},
+			   {:road_on?,_unset},
+			   {:road_transparent_on?,_unset},
+			   {:bing_traffic_on?,_unset},
+			   {:label_on?,_unset},
+			   {:projection_info,_unset}
+		   },
+		   {:plugin})
+$
+
+
+_pragma(classify_level=restricted)
+ve_swaf_plugin.define_shared_constant( :DATABUS_PRODUCER_DATA_TYPES,
+				       {
+					       ## :rwo_set -- produced by the geocoder
+					       :rwo_set,
+					       ## :large_map_mode -- one of {:center,:fill} indicating how to
+					       ##                     handle large map windows.
+					       :large_map_mode,
+					       ## :goto_request -- produced when we have a single geocode result.
+					       :goto_request,
+					       ## :wmc_map_type -- returns the current map_type for self.
+					       :wmc_map_type,
+
+					       ## :post_render_sets -- use this to notify that the map view
+					       ## has been refreshed and that we should re-evaluate certain
+					       ## action enabled? flags.
+					       :post_render_sets
+				       },
+				       :public )
+$
+_pragma(classify_level=restricted)
+ve_swaf_plugin.define_shared_constant( :DATABUS_CONSUMER_DATA_TYPES,
+				       {
+					       :map_properties,
+					       :wmc_map_states
+				       },
+				       :public )
+$
+_pragma(classify_level=advanced)
+## Indicates whether a check should be made for updates to this
+## product each time the plugin is started. (Default=True) 
+ve_swaf_plugin.def_property(:auto_check_for_updates?,
+			    :type,          :boolean,
+			    :default_value, _true,
+			    :readable?,     _true,
+			    :writable?,     _true,
+			    :description,   "Indicates whether a check should be made for updates to this product each time the plugin is started. (Default=True) ")
+$
+_pragma(classify_level=advanced)
+## Indicates whether the map view projection is automatically
+## locked to Virtual Earth when the dataset is opened by the
+## user. (Default=False) 
+ve_swaf_plugin.def_property(:lock_to_virtual_earth_projection?,
+			    :type,          :boolean,
+			    :default_value, _false,
+			    :readable?,     _true,
+			    :writable?,     _true,
+			    :description,   "Indicates whether the map view projection is automatically locked to Virtual Earth when the dataset is opened by the user. (Default=False)")
+$
+_pragma(classify_level=advanced)
+## Indicates whether or not the geocode_results table should be
+## reset when all tile layers are turned off from the
+## toolbar. (Default=False)   
+ve_swaf_plugin.def_property(:reset_geocode_results_when_tiles_turned_off?,
+			    :type,          :boolean,
+			    :default_value, _false,
+			    :readable?,     _true,
+			    :writable?,     _true,
+			    :description,   "Indicates whether or not the geocode_results table should be reset when all tile layers are turned off from the toolbar. (Default=False)")
+$
+_pragma(classify_level=advanced)
+## Indicates whether or not to use the Silverlight interface
+## when launching Bing Maps in the web browser. 
+ve_swaf_plugin.def_property(:use_bing_maps_silverlight?,
+			    :type,          :boolean,
+			    :default_value, _true,
+			    :readable?,     _true,
+			    :writable?,     _true,
+			    :description,   "Indicates whether or not to use the Silverlight interface when launching Bing Maps in the web browser.")
+$
+_pragma(classify_level=restricted)
+_method ve_swaf_plugin.init(_gather args)
+	## init() : ve_swaf_plugin
+	##
+	## initialises self's slots.
+
+	# calling :map_type will initialize the various view slots. 
+	_self.map_type
+
+	.projection_info << property_list.new()
+
+	_return _super.init(_scatter args)
+	
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.init_actions()
+	## 
+	##
+
+	_local module_name << _self.module_name
+
+	
+	_self.add_action(sw_action.new(:get_metadata,
+				       :engine,          _self,
+				       :action_message,  :|get_metadata()| ,
+				       :toolbar_control, :image_button_item ,
+				       :caption,         _self.message(:get_metadata),
+				       :short_help_text, _self.message(:get_metadata_sh  ),
+				       :tooltip,         _self.message(:get_metadata_tt),
+				       :image,           {:get_metadata,module_name}  )
+	      )
+
+	_self.add_action(sw_action.new( :toggle_dataset,
+					:engine,            _self,
+					:toolbar_control,   :image_button_item,
+					:menubar_control,   :button_item,
+					:caption,           _self.message(:toggle_dataset),
+					:tooltip,           _self.message(:toggle_dataset),
+					:action_message,    :|toggle_dataset()|,
+					:short_help_text,   _self.message(:toggle_dataset_sh),
+					:tooltip,           _self.message(:toggle_dataset_tt)  )
+	      )
+
+	_self.add_action(sw_action.new(:query,
+				       :engine,          _self,
+				       :toolbar_control, {:text_item ,
+							  :focus_change_selector,:ve_query_focus_changed|()|},
+				       :caption,         _self.message(:query),
+				       :short_help_text, _self.message(:query_sh),
+				       :tooltip,         _self.message(:query_tt)  ,
+				       :value,           _self.message(:query_help_string) )
+	      )
+	_self.add_action(sw_action.new(:geocode,
+				       :engine,          _self,
+				       :action_message,  :|geocode()| ,
+				       :toolbar_control, :image_button_item ,
+				       :caption,         _self.message(:geocode  ),
+				       :short_help_text, _self.message(:geocode_sh  ),
+				       :tooltip,         _self.message(:geocode_tt),
+				       :image,           {:geocode,module_name}     )
+	      )
+
+	_self.add_action(sw_action.new(:reverse_geocode,
+				       :engine,          _self,
+				       :action_message,  :|reverse_geocode()| ,
+				       :toolbar_control, :image_button_item ,
+				       :caption,         _self.message(:reverse_geocode  ),
+				       :short_help_text, _self.message(:reverse_geocode_sh  ),
+				       :tooltip,         _self.message(:reverse_geocode_tt),
+				       :image,           {:reverse_geocode,module_name}     )
+	      )
+
+	_self.add_action(sw_action.new(:search,
+				       :engine,          _self,
+				       :action_message,  :|search()| ,
+				       :toolbar_control, :image_button_item ,
+				       :caption,         _self.message(:search  ),
+				       :short_help_text, _self.message(:search_sh  ),
+				       :tooltip,         _self.message(:search_tt)  )
+	      )
+
+	_self.add_action(sw_action.new(:show_in_web_browser,
+				       :engine,          _self,
+				       :action_message,  {:|show_in_web_browser()|,_unset} ,
+				       :toolbar_control, :image_button_item ,
+				       :caption,         _self.message(:show_in_web_browser  ),
+				       :short_help_text, _self.message(:show_in_web_browser_sh  ),
+				       :tooltip,         _self.message(:show_in_web_browser_tt),
+				       :image,           {:web_browser,module_name}    )
+	      )
+
+	_self.add_action(sw_action.new(:show_birds_eye_in_web_browser,
+				       :engine,          _self,
+				       :action_message,  {:|show_in_web_browser()|,:birdseye} ,
+				       :toolbar_control, :image_button_item ,
+				       :caption,         _self.message(:show_birds_eye_in_web_browser  ),
+				       :short_help_text, _self.message(:show_birds_eye_in_web_browser_sh  ),
+				       :tooltip,         _self.message(:show_birds_eye_in_web_browser_tt),
+				       :image,           {:birds_eye,module_name}  )
+	      )
+
+
+	_self.add_action( sw_action.new( :road_view,
+					 :engine,                 _self,
+					 :toolbar_control,        :image_button_item,
+					 :menubar_control,        :button_item,
+					 :caption,                _self.message(:road_view),
+					 :action_message,         {:toggle_map_view|()|,:road},
+					 :tooltip,                _self.message(:road_view_tt),
+					 :short_help_text,        _self.message(:road_view_sh),
+					 :image,                 {:ve_map_type_road_off,module_name} ) )
+	
+	_self.add_action( sw_action.new( :road_transparent_view,
+					 :engine,                 _self,
+					 :toolbar_control,        :image_button_item,
+					 :menubar_control,        :button_item,
+					 :caption,                _self.message(:road_transparent_view),
+					 :action_message,         {:toggle_map_view|()|,:road_transparent},
+					 :tooltip,                _self.message(:road_transparent_view_tt),
+					 :short_help_text,        _self.message(:road_transparent_view_sh),
+					 :image,                 {:ve_map_type_road_transparent_off,module_name} ) )
+	
+	_self.add_action( sw_action.new( :bing_traffic,
+					 :engine,                 _self,
+					 :toolbar_control,        :text_toggle_item,
+					 :menubar_control,        :text_toggle_item,
+					 :caption,                _self.message(:bing_traffic),
+					 :value_change_message,   :toggle_bing_traffic|()|,
+					 :tooltip,                _self.message(:bing_traffic_tt),
+					 :short_help_text,        _self.message(:bing_traffic_sh) ) )
+	
+	_self.add_action( sw_action.new( :aerial_view,
+					 :engine,                 _self,
+					 :toolbar_control,        :image_button_item,
+					 :menubar_control,        :button_item,
+					 :caption,                _self.message(:aerial_view),
+					 :action_message,         {:toggle_map_view|()|,:aerial},
+					 :tooltip,                _self.message(:aerial_view_tt),
+					 :short_help_text,        _self.message(:aerial_view_sh),
+					 :image,                 {:ve_map_type_aerial_off,module_name} ) )
+			  
+	_self.add_action( sw_action.new( :label_view?,
+					 :engine,                 _self,
+					 :toolbar_control,        :image_button_item,
+					 :menubar_control,        :button_item,
+					 :caption,                _self.message(:label_view?),
+					 :action_message,         {:toggle_map_view|()|,:label},
+					 :image,                 {:ve_map_type_label_off,module_name} ) )
+	
+	_self.add_action( sw_action.new( :about,
+					 :engine,                 _self,
+					 :toolbar_control,        :button_item,
+					 :menubar_control,        :button_item,
+					 :caption,                _self.message(:about),
+					 :short_help_text,        _self.message(:about_sh  ),
+					 :tooltip,                _self.message(:about_tt),
+					 :action_message,         :launch_about_dialog|()|) )
+
+	_self.add_action( sw_action.new( :route_finder,
+					 :engine,                 _self,
+					 :toolbar_control,        :button_item,
+					 :menubar_control,        :button_item,
+					 :caption,                _self.message(:route_finder),
+					 :short_help_text,        _self.message(:route_finder_sh  ),
+					 :tooltip,                _self.message(:route_finder_tt),
+					 :action_message,         :launch_route_finder|()| ) )
+	
+	_self.add_action(sw_action.new(:bing_maps_mode,
+				       :engine,          _self,
+				       :value_change_message,  {:set_map_mode|()|,:bing_maps_mode},
+				       :toolbar_control,  :text_toggle_item,
+				       :caption,         "B",
+				       :short_help_text, "Bing Maps",
+				       :tooltip,         "Bing Maps",
+				       :value,           _true) )
+
+	_self.add_action(sw_action.new(:google_maps_mode,
+				       :engine,          _self,
+				       :value_change_message,  {:set_map_mode|()|,:google_maps_mode},
+				       :toolbar_control,  :text_toggle_item,
+				       :caption,         "G",
+				       :short_help_text, "Google Maps",
+				       :tooltip,         "Google Maps",
+				       :value,           _false) )
+
+	_self.add_action(sw_action.new(:os_maps_mode,
+				       :engine,          _self,
+				       :value_change_message,  {:set_map_mode|()|,:os_maps_mode},
+				       :toolbar_control,  :text_toggle_item,
+				       :caption,         "O",
+				       :short_help_text, "OpenStreetMap",
+				       :tooltip,         "OpenStreetMap",
+				       :value,           _false) )
+
+	_self.add_action(sw_action.new(:nearmap_mode,
+				       :engine,          _self,
+				       :value_change_message,  {:set_map_mode|()|,:nearmap_mode},
+				       :toolbar_control,  :text_toggle_item,
+				       :caption,         "N",
+				       :short_help_text, "NearMap",
+				       :tooltip,         "NearMap",
+				       :value,           _false) )
+
+	_self.add_action(sw_action.new(:mytopo_mode,
+				       :engine,          _self,
+				       :value_change_message,  {:set_map_mode|()|,:mytopo_mode},
+				       :toolbar_control,  :text_toggle_item,
+				       :caption,         "MyT",
+				       :short_help_text, "Mytopo",
+				       :tooltip,         "Mytopo",
+				       :value,           _false ) )
+
+
+	_self.add_action(sw_action.new( :google_toggle_dataset,
+					:engine,            _self,
+					:toolbar_control,   :text_toggle_item,
+					:menubar_control,   :button_item,
+					:caption,           "Google",
+					:tooltip,           "Google",
+					:value_change_message,    {:|new_toggle_dataset()|,:google_dataset},
+					:short_help_text,   "Google Dataset",
+					:tooltip,           "Google Dataset"  ) )
+
+	_self.add_action(sw_action.new( :osm_toggle_dataset,
+					:engine,            _self,
+					:toolbar_control,   :text_toggle_item,
+					:menubar_control,   :button_item,
+					:caption,           "OpenStreetMap",
+					:tooltip,           "OpenStreetMap",
+					:value_change_message,    {:|new_toggle_dataset()|,:osm_dataset},
+					:short_help_text,   "OpenStreetMap Dataset",
+					:tooltip,           "OpenStreetMap Dataset"  ) )
+
+	_self.add_action(sw_action.new( :webcam_toggle_dataset,
+					:engine,            _self,
+					:toolbar_control,   :text_toggle_item,
+					:menubar_control,   :button_item,
+					:caption,           "Webcam",
+					:tooltip,           "Webcam",
+					:value_change_message,    {:|new_toggle_dataset()|,:webcam_dataset},
+					:short_help_text,   "Webcam Dataset",
+					:tooltip,           "Webcam Dataset"  ) )
+
+	_self.add_action(sw_action.new( :weatherbug_toggle_radar,
+					:engine,            _self,
+					:toolbar_control,   :image_toggle_item,
+					:image,             {:weatherbug_toggle_radar,module_name},
+					:menubar_control,   :button_item,
+					:caption,           _self.message(:weatherbug_toggle_radar),
+					:tooltip,           _self.message(:weatherbug_toggle_radar),
+					:value_change_message,    {:|new_toggle_dataset()|,{:weatherbug_dataset,:doppler_radar}},
+					:short_help_text,   _self.message(:weatherbug_toggle_radar_sh),
+					:tooltip,           _self.message(:weatherbug_toggle_radar_tt)  ) )
+
+	_self.add_action( sw_action.new( :get_osm_data,
+					 :engine,                 _self,
+					 :toolbar_control,        :button_item,
+					 :menubar_control,        :button_item,
+					 :caption,                _self.message(:get_osm_data),
+					 :short_help_text,        _self.message(:get_osm_data_sh  ),
+					 :tooltip,                _self.message(:get_osm_data_tt),
+					 :action_message,         :get_osm_data|()| ) )
+
+	_self.add_action( sw_action.new( :get_osm_streets_only,
+					 :engine,                 _self,
+					 :toolbar_control,        :button_item,
+					 :menubar_control,        :button_item,
+					 :caption,                _self.message(:get_osm_streets_only),
+					 :short_help_text,        _self.message(:get_osm_streets_only_sh  ),
+					 :tooltip,                _self.message(:get_osm_streets_only_tt),
+					 :action_message,         {:get_osm_data|()|,"[highway=*]"} ) )
+
+
+	_self.add_action(sw_action.new(:launch_osm,
+				       :engine,          _self,
+				       :action_message,  {:|show_in_web_browser()|,:osm} ,
+				       :toolbar_control, :button_item ,
+				       :caption,         _self.message(:launch_osm  ),
+				       :short_help_text, _self.message(:launch_osm_sh  ),
+				       :tooltip,         _self.message(:launch_osm_tt))
+	      )
+
+	_self.add_action(sw_action.new(:launch_mapzen,
+				       :engine,          _self,
+				       :action_message,  {:|show_in_web_browser()|,:mapzen} ,
+				       :toolbar_control, :button_item ,
+				       :caption,         _self.message(:launch_mapzen  ),
+				       :short_help_text, _self.message(:launch_mapzen_sh  ),
+				       :tooltip,         _self.message(:launch_mapzen_tt))
+	      )
+
+	_self.add_action(sw_action.new(:launch_josm,
+				       :engine,          _self,
+				       :action_message,  :|launch_josm()| ,
+				       :toolbar_control, :button_item ,
+				       :caption,         _self.message(:launch_josm  ),
+				       :short_help_text, _self.message(:launch_josm_sh  ),
+				       :tooltip,         _self.message(:launch_josm_tt))
+	      )
+
+	_self.add_action( sw_action.new( :get_spatialstream_parcel_data,
+					 :engine,                 _self,
+					 :toolbar_control,        :button_item,
+					 :menubar_control,        :button_item,
+					 :caption,                _self.message(:get_spatialstream_parcel_data),
+					 :short_help_text,        _self.message(:get_spatialstream_parcel_data_sh  ),
+					 :tooltip,                _self.message(:get_spatialstream_parcel_data_tt),
+					 :action_message,         :get_spatialstream_parcel_data|()| ) )
+
+
+	_self.add_action( sw_action.new( :stop_acp,
+					 :engine,                 _self,
+					 :toolbar_control,        :button_item,
+					 :menubar_control,        :button_item,
+					 :caption,                _self.message(:stop_acp),
+					 :short_help_text,        _self.message(:stop_acp_sh  ),
+					 :tooltip,                _self.message(:stop_acp_tt),
+					 :action_message,         :stop_acp|()| ) )
+
+	_self.add_action( sw_action.new( :adjust_birdseye_shift,
+					 :engine,                 _self,
+					 :toolbar_control,        :button_item,
+					 :menubar_control,        :button_item,
+					 :caption,                _self.message(:adjust_birdseye_shift),
+					 :short_help_text,        _self.message(:adjust_birdseye_shift_sh  ),
+					 :tooltip,                _self.message(:adjust_birdseye_shift_tt),
+					 :action_message,         :adjust_birdseye_shift|()| ) )
+
+	_self.add_action( sw_action.new( :adjust_birdseye_shift_half_trail,
+					 :engine,                 _self,
+					 :toolbar_control,        :button_item,
+					 :menubar_control,        :button_item,
+					 :caption,                _self.message(:adjust_birdseye_shift_half_trail),
+					 :short_help_text,        _self.message(:adjust_birdseye_shift_half_trail_sh  ),
+					 :tooltip,                _self.message(:adjust_birdseye_shift_half_trail_tt),
+					 :action_message,         {:adjust_birdseye_shift|()|,0.5} ) )
+
+	_self.add_action( sw_action.new( :tilt_map,
+					 :toolbar_control,        :toggle_item,
+					 :menubar_control,        :toggle_item,
+					 :caption,                _self.message(:tilt_map),
+					 :short_help_text,        _self.message(:tilt_map_sh),
+					 :tooltip,                _self.message(:tilt_map_tt),
+					 :value,                  _false,
+					 :engine,                 _self,
+					 :value_change_message,   :|tilt_map_changed()| ) )
+
+	_self.add_action( sw_action.new( :rotate_map_north,
+					 :engine,                 _self,
+					 :toolbar_control,        :button_item,
+					 :menubar_control,        :button_item,
+					 :caption,                _self.message(:rotate_map_north),
+					 :short_help_text,        _self.message(:rotate_map_north_sh  ),
+					 :tooltip,                _self.message(:rotate_map_north_tt),
+					 :action_message,         {:rotate_map|()|,:north} ) )
+
+	_self.add_action( sw_action.new( :rotate_map_south,
+					 :engine,                 _self,
+					 :toolbar_control,        :button_item,
+					 :menubar_control,        :button_item,
+					 :caption,                _self.message(:rotate_map_south),
+					 :short_help_text,        _self.message(:rotate_map_south_sh  ),
+					 :tooltip,                _self.message(:rotate_map_south_tt),
+					 :action_message,         {:rotate_map|()|,:south} ) )
+
+	_self.add_action( sw_action.new( :save_birdseye_shift_cache,
+					 :engine,                 _self,
+					 :toolbar_control,        :button_item,
+					 :menubar_control,        :button_item,
+					 :caption,                _self.message(:save_birdseye_shift_cache),
+					 :short_help_text,        _self.message(:save_birdseye_shift_cache_sh  ),
+					 :tooltip,                _self.message(:save_birdseye_shift_cache_tt),
+					 :action_message,         :save_birdseye_shift_cache|()| ) )
+
+	_self.add_action( sw_action.new( :load_birdseye_shift_cache,
+					 :engine,                 _self,
+					 :toolbar_control,        :button_item,
+					 :menubar_control,        :button_item,
+					 :caption,                _self.message(:load_birdseye_shift_cache),
+					 :short_help_text,        _self.message(:load_birdseye_shift_cache_sh  ),
+					 :tooltip,                _self.message(:load_birdseye_shift_cache_tt),
+					 :action_message,         :load_birdseye_shift_cache|()| ) )
+
+
+
+	
+	_self.manage_actions()
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.toggle_bing_traffic(visible?)
+
+	.bing_traffic_on? << visible?
+
+	_self.manage_vhs_settings()
+	_self.current_map_view.render()
+_endmethod
+$
+
+
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.get_osm_data(_optional xapi_predicate)
+ 	## populates the OSM Dataset with vector data that is within
+ 	## the bounds of the current map view
+
+	_dynamic !current_coordinate_system!
+
+	_self.safe_current_coordinate_system()
+
+	_local (a_map_view,a_map_properties) << _self.current_map_view
+	
+	_local tr << transform.new_converting_cs_to_cs(!current_coordinate_system!,osm_dataset.LONGLAT_COORDINATE_SYSTEM)
+
+	_local bb << a_map_view.current_view_bounds.transform(tr)
+
+	_local dataset_name << :osm_dataset
+	_local a_dataset << gis_program_manager.cached_dataset(dataset_name)
+	_local a_filename << if_ve_acp.get_osm_data(bb.xmin,bb.ymin,bb.xmax,bb.ymax,_unset,xapi_predicate)
+
+	_protect
+		a_dataset.load_osm_file(a_filename)
+	_protection
+		system.unlink(a_filename)
+	_endprotect
+
+	_self.change_vhs_settings(dataset_name,:osm_node,{},_true,_true)
+	_self.change_vhs_settings(dataset_name,:osm_way,{},_true,_true)
+	_self.current_map_view.render()
+
+_endmethod
+$
+
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.get_metadata()
+	## Gets the metadata for the current map center point and
+	## displays it.
+	##
+
+	_dynamic !current_coordinate_system!
+
+	_self.safe_current_coordinate_system()
+
+	_local (a_map_view,a_map_properties) << _self.current_map_view
+
+	_local centre << a_map_view.current_view_bounds.centre
+
+	_local zoom_level << _self.zoom_level
+	_local map_type   << _self.map_type
+
+	_local tr << transform.new_converting_cs_to_cs(!current_coordinate_system!,wmc_dataset.LONGLAT_COORDINATE_SYSTEM)
+
+	_local centre_ll << tr.convert(centre)
+
+	_local lon << centre_ll.x
+	_local lat << centre_ll.y
+	_local (metadata,success?) << if_ve_acp.get_image_metadata_for_lat_long(lat,lon,zoom_level,map_type)
+
+	_if success?
+	_then
+		condition.raise(:ve_metadata,
+				:lon,lon,
+				:lat,lat,
+				:level_of_detail,zoom_level,
+				:map_type,map_type.default(:none),
+				:from_date,metadata[1],
+				:to_date,metadata[2])
+	_else 
+		condition.raise(:ve_metadata_server_error,
+				:lon,lon,
+				:lat,lat,
+				:level_of_detail,zoom_level,
+				:map_type,map_type.default(:none))
+	_endif
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.reverse_geocode()
+	## retrieves the street address at the current trail point.
+	## 
+	_if (info << _self.databus_request_data( :map_trail )) _isnt _unset
+	_then
+		(source, trail) << (_scatter info)
+	_endif 
+
+	_if trail _is _unset _orif
+	    trail.empty?
+	_then
+		condition.raise(:user_error,:string,_self.message(:place_trail_point))
+	_endif
+
+	_local trail_cs << trail.coordinate_system
+	
+	_if trail_cs _is _unset 
+	_then
+		trail_cs << wmc_dataset_manager.custom_coordinate_system()
+	_endif
+	
+	_local tr << transform.new_converting_cs_to_cs(trail_cs,
+						       wmc_dataset.LONGLAT_COORDINATE_SYSTEM)
+	
+	_local ll_coord << tr.convert(trail.last_coord)
+	_local lon << ll_coord.x
+	_local lat << ll_coord.y
+	_local (result,success?) << if_ve_acp.get_reverse_geocode_for_lat_long(lat,lon)
+
+
+	_if success?
+	_then
+		_local me << _self 
+		_local button_values << {:close,:save_to_clipboard,:show_address_in_browser}
+		_local button_labels << button_values.map(_proc(a_value)
+								  _import me
+
+								  >> me.message(a_value)
+							  _endproc)
+		
+		_local action << _self.show_query(button_labels,button_values,:close,
+						  _self.message(:ve_reverse_geocode_result,result))
+
+		_if action _is :save_to_clipboard
+		_then
+			_self.application.top_frame.clipboard_text << result
+			
+		_elif action _is :show_address_in_browser
+		_then
+			if_ve_acp.int!show_in_web_browser(_self.zoom_level,ll_coord,:birdseye)
+		_endif
+	_else 
+		condition.raise(:ve_reverse_geocode_server_error)
+	_endif
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.get_spatialstream_parcel_data()
+	## populates the spatialstream parcel table with the
+	## information from the current trail point.
+	## 
+	_if (info << _self.databus_request_data( :map_trail )) _isnt _unset
+	_then
+		(source, trail) << (_scatter info)
+	_endif 
+
+	_if trail _is _unset _orif
+	    trail.empty?
+	_then
+		condition.raise(:user_error,:string,_self.message(:place_trail_point))
+	_endif
+
+	_local trail_cs << trail.coordinate_system
+	
+	_if trail_cs _is _unset 
+	_then
+		trail_cs << wmc_dataset_manager.custom_coordinate_system()
+	_endif
+	
+	_local tr << transform.new_converting_cs_to_cs(trail_cs,
+						       wmc_dataset.LONGLAT_COORDINATE_SYSTEM)
+
+	_for i_coord _over trail.coords.fast_elements()
+	_loop
+		_local ll_coord << tr.convert(i_coord)
+		_local lon << ll_coord.x
+		_local lat << ll_coord.y
+
+		if_ve_acp.populate_spatialstream_parcel_table(lon,lat)
+	_endloop
+
+	
+	_self.change_vhs_settings(:spatialstream_dataset,:spatialstream_parcel,{},_true,_true)
+	_self.current_map_view.render()
+
+_endmethod
+$
+
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.dataset_open?
+	## 
+	##
+	_return gis_program_manager.cached_dataset(_self.dataset_exemplar.DATASET_NAME) _isnt _unset 
+_endmethod
+$
+
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.new_toggle_dataset(info,open_dataset?)
+
+	_local a_dataset
+	_local dataset_name , collection_name
+	
+	_if info.is_kind_of?({})
+	_then
+		(dataset_name,collection_name) << (_scatter info)
+	_else
+		dataset_name << info
+	_endif
+	
+	_if gis_program_manager.cached_dataset(dataset_name) _is _unset _andif
+	    open_dataset?
+	_then
+		_self.new_add_dataset(dataset_name)
+
+		_if collection_name _isnt _unset 
+		_then
+			_if gis_program_manager.cached_dataset(dataset_name) _isnt _unset 
+			_then
+				_self.change_vhs_settings(dataset_name,collection_name,{},_true)
+			_endif
+		_endif
+		
+	_elif (a_dataset << gis_program_manager.cached_dataset(dataset_name)) _isnt _unset _andif
+	      _not open_dataset?
+	_then
+		_self.new_remove_dataset(a_dataset)
+	_endif
+
+_endmethod
+$
+
+
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.toggle_dataset()
+	## 
+	##
+
+	_local dataset_action << _unset
+
+	_if _self.dataset_open?
+	_then
+		_self.remove_dataset()
+		_self.manage_map_view_projections(_false)
+	_else
+
+		_if _not if_ve_acp.has_credential_info_been_loaded?
+		_then
+			condition.raise(:ve_credentials_need_to_be_loaded)
+		_endif
+		
+		_if _self.auto_check_for_updates?
+		_then
+			_self.check_for_updates(_true,_true)
+			_self.auto_check_for_updates? << _false 
+		_endif
+
+		_self.add_dataset()
+		_self.manage_map_view_projections(.road_on? _orif .road_transparent_on? _orif .aerial_on?)
+	_endif
+
+	_self.manage_actions()
+_endmethod
+$
+_pragma(classify_level=restricted)
+_method ve_swaf_plugin.toggle_map_view(toggle_type)
+	## toggle_map_view(TOGGLE_TYPE symbol) : _unset 
+	##
+	## sets the :aerial_on?, :road_on?, :road_transparent_on?,
+	## :label_on?, :map_type slots appropriately based on the current
+	## TOGGLE_TYPE 
+	_local anything_changed? << _true 
+	
+	_if toggle_type _is :road
+	_then
+		.road_on? << _not .road_on?
+
+		_if .road_on?
+		_then
+			.road_transparent_on? << _false 
+			.aerial_on? << _false 
+		_endif
+		
+	_elif toggle_type _is :road_transparent
+	_then
+		.road_transparent_on? << _not .road_transparent_on?
+
+		_if .road_transparent_on?
+		_then
+			.road_on? << _false 
+			.aerial_on? << _false 
+		_endif
+		
+		
+	_elif toggle_type _is :aerial
+	_then
+		.aerial_on? << _not .aerial_on?
+
+		_if .aerial_on?
+		_then
+			.road_on? << _false
+			.road_transparent_on? << _false
+		_endif
+
+		
+	_elif toggle_type _is :label
+	_then
+		.label_on? << _not .label_on?
+	_else
+		anything_changed? << _false 
+	_endif
+
+	_if anything_changed?
+	_then
+		_self.manage_map_view_projections(.road_on? _orif .road_transparent_on? _orif .aerial_on?)
+
+		_if _self.reset_geocode_results_when_tiles_turned_off? _andif
+		    _not .road_on? _andif
+		    _not .road_transparent_on? _andif 
+		    _not .aerial_on?
+		_then
+			_local dataset_name << _self.dataset_exemplar.DATASET_NAME
+
+			gis_program_manager.cached_dataset(dataset_name).collections[:bing_geocode_result].empty()
+		_endif
+
+		_self.manage_actions()
+		_self.manage_vhs_settings()
+		_self.current_map_view.render()
+	_endif
+_endmethod
+$
+_pragma(classify_level=restricted)
+_method ve_swaf_plugin.current_map_view
+	## current_map_view : map_view , map_properties
+	##
+	## returns the current map view and map_properties associated
+	## with self.   
+
+	_return (_scatter _self.databus_request_data(:map_properties))
+_endmethod
+$
+_pragma(classify_level=restricted)
+_method ve_swaf_plugin.manage_vhs_settings()
+	## manage_vhs_settings() : _unset
+	##
+	## manages the VHS settings on the current ace_control based on
+	## the user-defined road/aerial/label buttons.
+
+	_local app   << _self.application
+	_local ac    << app.get_ace_control_for(app.ace_name)
+
+	_local colls << gis_program_manager.cached_dataset(_self.dataset_exemplar.DATASET_NAME).collections
+
+	_local aerial_labeled_tile
+	_local aerial_tile
+	_local road_tile
+	_local road_tile_transparent
+	_local traffic
+
+	_try
+		aerial_labeled_tile   << colls[:aerial_labelled_tile].field(:tile)
+		aerial_tile           << colls[:aerial_tile].field(:tile)
+		road_tile             << colls[:road_tile].field(:tile)
+		road_tile_transparent << colls[:road_tile_transparent].field(:tile)
+		traffic               << colls[:traffic_tile].field(:tile)
+	_when error
+		# this method gets called at "open dataset" for all
+		# geocoding_api_vendor_name values.  But it is really only
+		# meant for Bing.  This try/endtry will trap the non-Bing cases
+		# and let the flow continue without interruption.
+		_return 
+	_endtry
+
+	_local display_scale_names << ac.scale_label_list
+	
+	ac.set_visibility_for_display_scales({aerial_labeled_tile,aerial_tile,road_tile,road_tile_transparent,traffic},_false,_scatter display_scale_names)
+
+	_if .aerial_on?
+	_then
+		_if .label_on?
+		_then
+			ac.set_visibility_for_display_scales({aerial_labeled_tile},_true,_scatter display_scale_names)
+		_else
+			ac.set_visibility_for_display_scales({aerial_tile},_true,_scatter display_scale_names)
+		_endif
+
+	_elif .road_on?
+	_then
+		ac.set_visibility_for_display_scales({road_tile},_true,_scatter display_scale_names)
+
+	_elif .road_transparent_on?
+	_then
+		ac.set_visibility_for_display_scales({road_tile_transparent},_true,_scatter display_scale_names)
+	_endif
+
+	_if .bing_traffic_on?.default(_false)
+	_then
+		ac.set_visibility_for_display_scales({traffic},_true,_scatter display_scale_names)
+	_endif
+	
+_endmethod
+$
+_pragma(classify_level=basic)
+_method ve_swaf_plugin.zoom_level
+	## zoom_level : integer,coordinate
+	##
+	## returns the Virtual Earth zoom level (aka Level of Detail)
+	## for the map currently associated with self.  Also returns
+	## the coordinate (in lon/lat) that was used to determine this
+	## zoom_level. 
+
+	_dynamic !current_coordinate_system!
+
+	_self.safe_current_coordinate_system()
+
+	_local (a_map_view,a_map_properties) << _self.current_map_view
+
+	_if a_map_view _is _unset 
+	_then
+		_return -1
+	_endif
+	
+	_local centre << a_map_view.current_view_bounds.centre
+
+	_local t << transform.new_converting_cs_to_cs(!current_coordinate_system!,wmc_dataset.LONGLAT_COORDINATE_SYSTEM)
+
+	_local centre_lon_lat << t.convert(centre)
+	_local lat << centre_lon_lat.y
+
+	_return wmc_rwo_record.get_level_of_detail(lat,
+						   _self.current_map_view.view_scale,
+						   a_map_view.wmc_dpi).min(21) , centre_lon_lat
+
+_endmethod
+$
+_pragma(classify_level=basic)
+_method ve_swaf_plugin.map_type
+	## map_type : symbol
+	##
+	## returns a suitable symbol based on the various
+	## aerial/road/label toggles.  The valid symbols returned are
+	## one of {:road,:aerial,:aerialWithLabels}
+
+	_if .aerial_on? _is _unset 
+	_then
+		.aerial_on? << _false 
+	_endif
+
+	_if .road_on? _is _unset 
+	_then
+		.road_on? << _false 
+	_endif
+
+	_if .road_transparent_on? _is _unset 
+	_then
+		.road_transparent_on? << _false 
+	_endif
+
+	_if .label_on? _is _unset 
+	_then
+		.label_on? << _false 
+	_endif
+
+	_if .road_on? _orif
+	    .road_transparent_on?
+	_then
+		_return :road
+
+	_elif .aerial_on?
+	_then
+		_if .label_on?
+		_then
+			_return :aerialWithLabels
+		_else 
+			_return :aerial		
+		_endif
+	_else
+		_return _unset
+	_endif
+_endmethod
+$
+_pragma(classify_level=restricted)
+_method ve_swaf_plugin.manage_actions()
+	## manage_actions() : _unset
+	##
+	## manages the actions on _self when some status has changed.  
+
+	_local dataset_open? << _self.dataset_open?
+	_local module_name    << _self.module_name
+	_local map_type       << _self.map_type
+	
+	_local toggle_dataset_action << _self.action(:toggle_dataset)
+
+	_local authorised_user? << _true
+
+	_try _with cond
+		if_ve_acp.validate_sw_auth()
+		
+	_when ve_current_user_not_sw_auth_validated
+		authorised_user? << _false 
+	_endtry
+
+	_if _not authorised_user?
+	_then
+		# if the current user is not authorised, then disable ALL
+		# actions EXCEPT the :about one.
+
+		_for an_action _over _self.actions()
+		_loop
+			an_action.enabled? << an_action.name _is :about
+		_endloop
+
+		toggle_dataset_action.set_image({:open_ve_dataset,module_name})
+
+		_return 
+	_endif
+
+	_if dataset_open?
+	_then
+		toggle_dataset_action.set_image({:close_ve_dataset,module_name})
+		toggle_dataset_action.tooltip         << _self.message(:toggle_dataset_close_tt)
+		toggle_dataset_action.short_help_text << _self.message(:toggle_dataset_close_sh)
+	_else 
+		toggle_dataset_action.set_image({:open_ve_dataset,module_name})
+		toggle_dataset_action.tooltip         << _self.message(:toggle_dataset_open_tt)
+		toggle_dataset_action.short_help_text << _self.message(:toggle_dataset_open_sh)
+	_endif
+
+	_local an_action << _self.action(:road_view)
+	_if .road_on?
+	_then
+		an_action.set_image({:ve_map_type_road_on,module_name})
+		an_action.tooltip         << _self.message(:road_view_on_tt)
+		an_action.short_help_text << _self.message(:road_view_on_sh)
+	_else 
+		an_action.set_image({:ve_map_type_road_off,module_name})
+		an_action.tooltip         << _self.message(:road_view_off_tt)
+		an_action.short_help_text << _self.message(:road_view_off_sh)
+	_endif
+
+	an_action << _self.action(:road_transparent_view)
+	_if .road_transparent_on?
+	_then
+		an_action.set_image({:ve_map_type_road_transparent_on,module_name})
+		an_action.tooltip         << _self.message(:road_transparent_view_on_tt)
+		an_action.short_help_text << _self.message(:road_transparent_view_on_sh)
+	_else 
+		an_action.set_image({:ve_map_type_road_transparent_off,module_name})
+		an_action.tooltip         << _self.message(:road_transparent_view_off_tt)
+		an_action.short_help_text << _self.message(:road_transparent_view_off_sh)
+	_endif
+
+	an_action << _self.action(:aerial_view)
+	_if .aerial_on?
+	_then
+		an_action.set_image({:ve_map_type_aerial_on,module_name})
+		an_action.tooltip         << _self.message(:aerial_view_on_tt)
+		an_action.short_help_text << _self.message(:aerial_view_on_sh)
+	_else 
+		an_action.set_image({:ve_map_type_aerial_off,module_name})
+		an_action.tooltip         << _self.message(:aerial_view_off_tt)
+		an_action.short_help_text << _self.message(:aerial_view_off_sh)
+	_endif
+
+	an_action << _self.action(:label_view?)
+	_if .label_on?
+	_then
+		an_action.set_image({:ve_map_type_label_on,module_name})
+		an_action.tooltip         << _self.message(:label_view_on_tt)
+		an_action.short_help_text << _self.message(:label_view_on_sh)
+	_else 
+		an_action.set_image({:ve_map_type_label_off,module_name})
+		an_action.tooltip         << _self.message(:label_view_off_tt)
+		an_action.short_help_text << _self.message(:label_view_off_sh)
+	_endif
+
+	an_action.enabled? << .aerial_on? _and dataset_open?
+
+	_self.action(:show_in_web_browser).enabled? << _true
+	_self.action(:show_birds_eye_in_web_browser).enabled? << _true
+
+	_self.action(:get_metadata).enabled? << dataset_open?
+
+	
+	_for action_id _over {:query,:geocode,:route_finder,:reverse_geocode,:search,:road_view,:road_transparent_view,:aerial_view}.fast_elements()
+	_loop
+		_self.action(action_id).enabled? << dataset_open?
+	_endloop
+
+	_if _self.action(:geocode).enabled? _andif
+	    _self.action(:query).value = _self.message(:query_help_string)
+	_then
+		_self.action(:geocode).enabled? << _false 
+	_endif
+
+
+	_self.action(:get_osm_data).enabled? << gis_program_manager.cached_dataset(osm_dataset.dataset_name) _isnt _unset 
+	_self.action(:get_spatialstream_parcel_data).enabled? << gis_program_manager.cached_dataset(spatialstream_dataset.dataset_name) _isnt _unset 
+
+_endmethod
+$
+_pragma(classify_level=restricted)
+_method ve_swaf_plugin.int!manage_birds_eye_view_action()
+	## int!manage_birds_eye_view_action() : _unset
+	##
+	## manages the Launch Bird's Eye View action visibility.  We
+	## have to put it in a separate method because this method
+	## needs to be initiated by both changes in the plugin as well
+	## as every time the map view is refreshed.
+
+	_local zoom_level << _self.zoom_level
+
+	_local birds_eye_threshold_zoom_level << 5
+	
+	_local an_action           << _self.action(:show_birds_eye_in_web_browser)
+	an_action.enabled?        << _self.map_type _isnt _unset _andif
+			              zoom_level >= birds_eye_threshold_zoom_level
+
+	_if zoom_level >= birds_eye_threshold_zoom_level
+	_then
+		# when we are zoomed in close enough, change the button message
+		# to the "active" one.
+		an_action.tooltip         << _self.message(:show_birds_eye_in_web_browser_tt)
+		an_action.short_help_text << _self.message(:show_birds_eye_in_web_browser_sh)
+	_else
+		# when we are zoomed out too far, change the button message to
+		# tell the user that they can activate this functionality by
+		# zooming closer.
+		an_action.tooltip         << _self.message(:show_birds_eye_in_web_browser_close_tt)
+		an_action.short_help_text << _self.message(:show_birds_eye_in_web_browser_close_sh)
+	_endif
+
+
+_endmethod
+$
+
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.add_dataset()
+	## 
+	##
+
+	
+	_dynamic !if_ve_ace_name! << _self.application.ace_name
+
+	_dynamic !current_package!
+		
+	_local dataset_manager_exemplar << !current_package!.all_packages[:user][(if_ve_acp.geocoding_api_vendor_name + :_dataset_manager).as_symbol()]
+
+	_local vedsm << dataset_manager_exemplar.startup()
+	_local a_soc << _self.framework.spatial_object_controller
+	
+	_if a_soc.responds_to? ( :initial_soc_name )
+	_then
+		a_soc << gis_program_manager.spatial_object_controller ( a_soc.initial_soc_name )
+	_endif
+	
+	_if a_soc _isnt _unset 
+	_then
+		.soc << a_soc
+		.soc.add_dataset_manager(vedsm)
+	_endif
+
+	_self.manage_vhs_settings()
+
+_endmethod
+$
+
+_pragma(classify_level=restricted)
+_private _method ve_swaf_plugin.new_add_dataset(dataset_name)
+	## 
+	##
+
+	_dynamic !if_ve_ace_name! << _self.application.ace_name
+
+	_local vedsm << !current_package!.all_packages[:user][dataset_name + :_manager]
+
+	_if vedsm _is _unset 
+	_then
+		vedsm << !current_package!.all_packages[:user][dataset_name + :m]
+	_endif
+
+	vedsm << vedsm.startup()
+	
+	_local a_soc << _self.framework.spatial_object_controller
+	
+	_if a_soc.responds_to? ( :initial_soc_name )
+	_then
+		a_soc << gis_program_manager.spatial_object_controller ( a_soc.initial_soc_name )
+	_endif
+	
+	_if a_soc _isnt _unset 
+	_then
+		.soc << a_soc
+		.soc.add_dataset_manager(vedsm)
+	_endif
+
+_endmethod
+$
+_pragma(classify_level=restricted)
+_private _method ve_swaf_plugin.manage_map_view_projections(ve_data_visible?)
+	## manage_map_view_projections(VE_DATA_VISIBLE? boolean) : _unset
+	##
+	## if property :lock_to_virtual_earth_projection? is _True,
+	## then manage the map_view projection based on
+	## VE_DATA_VISIBLE?
+
+	_if _not _self.lock_to_virtual_earth_projection?
+	_then
+		_return 
+	_endif
+
+	_local a_map_view    << _self.current_map_view
+	_local a_map_manager << a_map_view.map_manager
+	_local cs_action     << a_map_manager.action(:view_coordinate_system)
+	
+	_if ve_data_visible? _andif
+	    .projection_info[:pre_lock_cs] _is _unset 
+	_then
+		.projection_info[:pre_lock_cs]       << cs_action.value
+		.projection_info[:pre_lock_enabled?] << cs_action.enabled?
+
+		_local ve_cs_name << wmc_dataset.MERCATOR_COORDINATE_SYSTEM.name
+
+		_local new_cs_value << _unset
+
+		_for a_cs _over cs_action.items.fast_elements()
+		_loop
+			_if a_cs.name.index_of_seq(ve_cs_name) _isnt _unset _orif
+			    a_cs.name.index_of_seq(:ve_mercator_spherical_metre) _isnt _unset # this is for backward compatibility.
+			_then
+				a_map_view.set_display_coordinate_system(a_cs)
+				cs_action.enabled? << _false
+				_leave 
+			_endif
+		_finally
+			condition.raise(:ve_no_mercator_coordinate_system_defined)
+		_endloop
+
+	_elif _not ve_data_visible?
+	_then
+		_if .projection_info[:pre_lock_cs] _isnt _unset 
+		_then
+			a_map_view.set_display_coordinate_system(.projection_info[:pre_lock_cs])
+		_endif
+
+		_if .projection_info[:pre_lock_enabled?] _isnt _unset 
+		_then
+			cs_action.enabled? << .projection_info[:pre_lock_enabled?]
+		_endif
+
+		.projection_info[:pre_lock_cs]       << _unset
+		.projection_info[:pre_lock_enabled?] << _unset 
+	_endif
+	
+_endmethod
+$
+
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.remove_dataset()
+	## 
+	##
+
+	_if .soc _is _unset
+	_then
+		_if _self.dataset_open?
+		_then
+			# if .soc is unset but .dataset_open? that means that the
+			# current plugin does not have a cached .soc value but the
+			# ve_dataset is currently open.  This usually happens when an
+			# application was closed without first closing the dataset and
+			# then a new application was opened.  To get things back in
+			# synch, we need to set the .soc slot so that we can properly
+			# close it later in this method.
+
+			_local a_soc << _self.framework.spatial_object_controller
+			
+			_if a_soc.responds_to? ( :initial_soc_name )
+			_then
+				a_soc << gis_program_manager.spatial_object_controller ( a_soc.initial_soc_name )
+			_endif
+			
+			_if a_soc _isnt _unset 
+			_then
+				.soc << a_soc
+			_endif 
+		_else 
+			_return
+		_endif
+	_endif
+
+	_local dataset_name << _self.dataset_exemplar.DATASET_NAME
+	
+	gis_program_manager.cached_dataset(dataset_name).collections[:geocode_result].default(rope.new()).empty()
+	
+	.soc.remove_dataset_manager(dataset_name)
+
+	gis_program_manager.uncache_dataset(dataset_name)
+	
+	.soc << _unset 
+_endmethod
+$
+_pragma(classify_level=restricted)
+_private _method ve_swaf_plugin.new_remove_dataset(a_dataset)
+	## 
+	##
+
+	_if .soc _is _unset _andif 
+	    a_dataset _isnt _unset 
+	_then
+		# if .soc is unset but .dataset_open? that means that the
+		# current plugin does not have a cached .soc value but the
+		# ve_dataset is currently open.  This usually happens when an
+		# application was closed without first closing the dataset and
+		# then a new application was opened.  To get things back in
+		# synch, we need to set the .soc slot so that we can properly
+		# close it later in this method.
+		
+		_local a_soc << _self.framework.spatial_object_controller
+		
+		_if a_soc.responds_to? ( :initial_soc_name )
+		_then
+			a_soc << gis_program_manager.spatial_object_controller ( a_soc.initial_soc_name )
+		_endif
+		
+		_if a_soc _isnt _unset 
+		_then
+			.soc << a_soc
+		_endif 
+	_endif
+
+	_local dataset_name << a_dataset.name
+	
+	.soc.remove_dataset_manager(dataset_name)
+
+	gis_program_manager.uncache_dataset(dataset_name)
+_endmethod
+$
+
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.geocode()
+	## 
+	##
+
+	_dynamic !current_coordinate_system!
+
+	_local need_to_change_world? << _false
+	
+	_if !current_coordinate_system! _is _unset
+	_then
+		!current_coordinate_system! << _self.application.coordinate_system
+	_endif 
+	
+	_if !current_coordinate_system! _is _unset 
+	_then
+		need_to_change_world? << _true 
+		!current_coordinate_system! << wmc_dataset_manager.custom_coordinate_system()
+	_endif
+	
+
+	query << _self.action(:query).value
+	_if query _is _unset _orif
+	    query.size < 1
+	_then
+		condition.raise(:ve_invalid_query)
+	_endif
+
+	res << if_ve_acp.get_geocode(query)
+
+	_if need_to_change_world?
+	_then
+		# the geocode location results are typically returned in a
+		# lat/long pseudo world.  But if we are in a situation where we
+		# have to use the :custom_coordinate_system(), that means that
+		# the database and application worlds are not labelled so we
+		# need to change the coordinate on the geocode location results
+		# to match the custom coordinate system.
+
+		_for a_result _over res.fast_elements()
+		_loop
+			_local a_coord << a_result[:location].coordinate
+			a_result[:location] << pseudo_point.new(a_coord)
+			a_result[:location].world << pseudo_world.new(!current_coordinate_system!)
+		_endloop
+		
+	_endif
+	recs << rwo_set.new()
+
+	_dynamic !current_package!
+		
+	_local geocode_result_exemplar << !current_package!.all_packages[:user][(if_ve_acp.geocoding_api_vendor_name + :_geocode_result).as_symbol()]
+
+	_local unique_id << 0
+	_for a_item _over res.fast_elements()
+	_loop
+		recs.add(geocode_result_exemplar.wmc_new_from(a_item,unique_id +<< 1))
+	_endloop
+
+	_if recs.empty?
+	_then
+		condition.raise(:wmc_no_search_results)
+		
+	_elif recs.size _is 1
+	_then
+		_local rec << recs.an_element()
+		_local sc_name << rec.get_spatial_context_names().an_element()
+		_local sc << rec.get_spatial_context(sc_name)
+		_self.databus_make_data_available(:goto_request,
+						  {sc})
+	_else 
+		_self.databus_make_data_available(:rwo_set,
+						  {_self,recs,
+						   :name,query,
+						   :set_current?,_true})
+	_endif
+	_return recs
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.sw_databus_data_requested(data_type_name)
+	## sw_databus_data_requested(DATA_TYPE_NAME symbol) : object
+	##
+	##
+
+	_if data_type_name _is :large_map_mode
+	_then
+		_return _self.large_map_mode
+
+	_elif data_type_name _is :wmc_map_type
+	_then
+		_return _self.map_type
+
+	_elif data_type_name _is :post_render_sets
+	_then
+		_return _unset 
+	_endif
+	
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.sw_databus_data_available(data_type_name,data)
+	## sw_databus_data_available(DATA_TYPE_NAME symbol) : object
+	##
+	##
+
+	_local visible? , dataset_name , collection_name
+	
+	_if data_type_name _is :wmc_map_states
+	_then
+		_for s _over data.fast_elements()
+		_loop
+			visible? << s[1]
+			(dataset_name,collection_name,geometry_field_name) << (_scatter s[2].write_string.split_by(%-).map(_proc(a) >> a.as_symbol() _endproc))
+
+			_if visible? _andif
+			    gis_program_manager.cached_dataset(dataset_name) _is _unset 
+			_then
+				_self.new_toggle_dataset(dataset_name,_true)
+			_endif
+
+			_if gis_program_manager.cached_dataset(dataset_name) _isnt _unset 
+			_then
+				_if geometry_field_name _is _unset
+				_then
+					_self.change_vhs_settings(dataset_name,collection_name,{},visible?)
+				_else
+					_self.change_vhs_settings(dataset_name,collection_name,{geometry_field_name},visible?)
+									
+				_endif
+			_endif
+		_endloop
+
+		_self.manage_actions()
+		_self.current_map_view.render()
+	_endif
+_endmethod
+$
+_pragma(classify_level=restricted)
+_method ve_swaf_plugin.change_vhs_settings(dataset_name,collection_name,geometry_field_names_filter,visible?,_optional selectable?)
+	## change_vhs_settings(symbol DATASET_NAME,
+	##                     symbol COLLECTION_NAME,
+	##                     collection of symbol GEOMETRY_FIELD_NAMES_FILTER,
+	##                     boolean VISIBLE?,
+	##                     optional boolean SELECTABLE?)
+	##
+	## optional SELECTABLE? defaults to _false.
+
+	selectable? << selectable?.default(_false)
+	
+	_local app   << _self.application
+	_local ac    << app.get_ace_control_for(app.ace_name)
+
+	_local colls << gis_program_manager.cached_dataset(dataset_name).collections
+
+	_local display_scale_names << ac.scale_label_list
+
+	# by default, the VHS settings should apply to ALL
+	# geometry_fields for the collection...
+	_local geometry_fields << colls[collection_name].geometry_fields
+
+	_if geometry_field_names_filter _isnt _unset _andif
+	    _not geometry_field_names_filter.empty?
+	_then
+		# ... unless a geometry field names filter has been specified.
+		# In this case, we filter geometry_fields to use only the names
+		# in GEOMETRY_FIELD_NAMES_FILTER.
+		_local filtered_geometry_fields << property_list.new()
+
+		_for geom_name _over geometry_field_names_filter.fast_elements()
+		_loop
+			filtered_geometry_fields[geom_name] << geometry_fields[geom_name]
+		_endloop
+
+		geometry_fields << filtered_geometry_fields
+		
+	_endif
+	
+	ac.set_visibility_for_display_scales(geometry_fields,
+					     visible?,
+					     _scatter display_scale_names)
+
+	ac.set_selectability_for_display_scales(geometry_fields,
+						selectable?,
+						_scatter display_scale_names)
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.show_in_web_browser(_optional map_type)
+	## show_in_web_browser() : _unset
+	##
+	## calls "start <map URL>".  This will launch the default
+	## browser and direct it to maps.live.com with suitable lat/lon
+	## and zoom scale information set.
+
+	_local (zoom_level,centre_lon_lat) << _self.zoom_level
+
+	
+	if_ve_acp.int!show_in_web_browser(zoom_level,centre_lon_lat,map_type.default(_self.map_type))
+
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.launch_josm()
+	## launch_josm() : _unset
+	##
+	## if JOSM (Java OpenStreetMap Editor -
+	## http://josm.openstreetmap.de) is currently running on the
+	## local machine, then use the JOSM Remote Control
+	## functionality to open JOSM with downloaded OSM data in the
+	## current Smallworld map view.
+
+	_dynamic !current_coordinate_system!
+	_dynamic !print_float_precision! << 12 
+	_local bb << _self.current_map_view.current_view_bounds
+
+	_local t << transform.new_converting_cs_to_cs(!current_coordinate_system!,wmc_dataset.LONGLAT_COORDINATE_SYSTEM)
+
+	_local new_bb << bb.transform(t)
+
+	_local path << write_string("/load_and_zoom?",
+				    "left=",new_bb.xmin,
+				    "&right=",new_bb.xmax,
+				    "&top=",new_bb.ymax,
+				    "&bottom=",new_bb.ymin)
+
+	_local hr << mclib:http_request.new(_unset,_unset,
+					    :server,"localhost",
+					    :port,8111,
+					    :path,path)
+
+	_local success? << _false
+	
+	_try
+		hr.connect()
+		success? << _true 
+	_when sw_net_connection_failed
+
+		_local (status,exit_code) << system.do_command("start josm")
+
+		_if exit_code = 0
+		_then
+			# then we know that JOSM was successfully started.  Now we just
+			# need to wait 2 seconds to try to reconnect.
+
+			_for i _over range(1,5)
+			_loop
+				_thisthread.sleep(1000)
+
+				_try
+					hr.connect()
+					success? << _true
+					_leave
+				_when sw_net_connection_failed 
+				      # try again
+				_endtry
+			_endloop
+			
+		_endif
+	_endtry
+
+	_if _not success?
+	_then
+		condition.raise(:wmc_josm_not_running)
+	_endif
+_endmethod
+$
+
+
+_pragma(classify_level=restricted)
+_method ve_swaf_plugin.launch_about_dialog()
+	## 
+	## 
+	
+	_local d,name
+
+	name << :ve_som_about_dialog
+
+	_if (d << _self.get_dialog(name)) _is _unset
+	_then
+		d << ve_som_about_dialog_framework.new(_self.message(:title),_self.framework,
+						       :config_definition_file_name,"ve_som_about_dialog_config.xml",
+						       :gui_definition_file_name,"ve_som_about_dialog_gui.xml")
+
+		_self.cache_dialog(name,d)
+	_endif
+
+	d.maximizable? << _true
+	d.minimizable? << _true
+	d.resizable?   << _true
+
+	d.activate(_unset,_self.message(name))
+
+	>> d
+_endmethod
+$
+_pragma(classify_level=restricted)
+_method ve_swaf_plugin.launch_route_finder()
+	## 
+	## 
+	
+	_local d,name
+
+	_global wmc_route_finder_framework
+	
+	name << :route_finder
+
+	_if (d << _self.get_dialog(name)) _is _unset
+	_then
+		d << wmc_route_finder_framework.new(_self.message(:title),_self.framework)
+
+		_self.cache_dialog(name,d)
+	_endif
+
+	d.maximizable? << _true
+	d.minimizable? << _true
+	d.resizable?   << _true
+
+	d.activate(_unset,_self.message(name))
+
+	>> d
+_endmethod
+$
+
+
+_pragma(classify_level=basic)
+_method ve_swaf_plugin.get_product_revision_number()
+	## get_product_revision_number() : string
+	##
+	## returns the revision number of the current product. 
+
+	_local product_directory << sw_module_manager.module(_self.module_name).product.directory
+	_local revision_file_name << system.pathname_down(product_directory,"revision_number.txt")
+
+	_local revision_number << _unset
+	
+	_local str << external_text_input_stream.new(revision_file_name)
+
+	_protect
+		revision_number << str.get_line()
+	_protection
+		str.close()
+	_endprotect
+
+	_return revision_number
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.check_for_updates(_optional quiet_if_no_update?,quiet_on_connection_error?)
+	## check_for_updates(optional boolean QUIET_IF_NO_UPDATE?,
+	##                            boolean QUIET_ON_CONNECTION_ERROR?) : unset
+	##
+	## checks to see if the current product revision number is
+	## different than the most recent revision number as found on
+	## the server.  Prompts the user to download the latest
+	## version.
+	##
+	## If QUIET_IF_NO_UPDATE? is true and no update is required,
+	## then do not raise an alert.
+
+	_local download_url        << "streetlight.web701.discountasp.net/publicdownloads/ve_for_sw" 
+	_local revision_number_url << write_string("http://", download_url , "/revision_number.txt")
+
+	_local current_revision_number_string << _self.get_product_revision_number()
+	_local current_revision_number        << current_revision_number_string.as_number().default(0)
+
+	_local hr, most_recent_revision_number
+
+	_try _with cond
+		hr << mclib:http_request.new_for_url(_unset,_unset,revision_number_url)
+		hr.connect()
+		_local most_recent_revision_info << hr.smart_result().split_by(space_char)
+		most_recent_revision_number << most_recent_revision_info[1].as_number().default(0)
+
+		_if most_recent_revision_number > current_revision_number
+		_then
+
+			_local me << _self 
+			_local button_values << {:updates_remind_me_later,:updates_download}
+			_local button_labels << {_self.message(:updates_remind_me_later),
+						 _self.message(:updates_download,most_recent_revision_number)}
+
+			_local action << _self.show_query(button_labels,button_values,_unset,
+							  _self.message(:more_recent_revision_exists,current_revision_number_string,most_recent_revision_number))
+
+			_if action _is :updates_download
+			_then
+				_local url << write_string("http:",%","\\www.ifactorconsulting.com\products\index.aspx?pageID=58",%")
+				
+				system.do_command(write_string("start ",url))
+			_endif
+		_else
+			_if quiet_if_no_update? _isnt _true 
+			_then
+				_self.show_alert(_self.message(:revision_up_to_date,current_revision_number_string.split_by(space_char).first))
+			_endif
+		_endif
+
+	_when error
+		_if cond.name _is :sw_net_connection_failed _orif
+		    cond.name _is :sw_net_lookup_failed
+		_then
+			_if quiet_on_connection_error? _isnt _true
+			_then 
+				condition.raise(:ve_update_connection_error)
+			_endif 
+		_endif
+	_endtry
+
+	
+
+_endmethod
+$
+
+
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.set_map_mode(a_map_mode,on?)
+
+	_local lookup << property_list.new_with(:os_maps_mode,:osm,
+						:bing_maps_mode,_unset,
+						:google_maps_mode,:google,
+						:nearmap_mode,:nearmap,
+						:mytopo_mode,:mytopo)
+	
+	_dynamic !if_ve_ignore_map_mode?!
+
+	# use this dynamic variable to prevent recursive call of this
+	# method. 
+	_if !if_ve_ignore_map_mode?! _is _true 
+	_then
+		_return 
+	_endif
+
+	!if_ve_ignore_map_mode?! << _true 
+
+	_if _not on?
+	_then
+		_self.action(a_map_mode).value << _true
+		_return 
+	_endif
+	
+	_for map_action _over lookup.fast_keys()
+	_loop
+		_if map_action _is a_map_mode
+		_then
+			_continue 
+		_endif
+
+		_self.action(map_action).value << _false 
+	_endloop
+
+	ve_tile.define_shared_constant(:VENDOR,lookup[a_map_mode],_false)
+	
+	if_ve_acp.int!empty_cache()
+_endmethod
+$
+_pragma(classify_level=restricted, topic={wmc_route_finder})
+_method ve_swaf_plugin.safe_current_coordinate_system()
+	## if there is no !current_coordinate_system! set, then use one
+	## customized for the current installation.
+
+	_import _dynamic !current_coordinate_system!
+
+	_if !current_coordinate_system! _is _unset
+	_then
+		!current_coordinate_system! << _self.application.coordinate_system
+	_endif 
+	
+	_if !current_coordinate_system! _is _unset 
+	_then
+		!current_coordinate_system! << wmc_dataset_manager.custom_coordinate_system()
+	_endif
+_endmethod
+$
+_pragma(classify_level=restricted, topic={wmc_route_finder})
+_method ve_swaf_plugin.dataset_exemplar
+	## used for the special case of the Geocoding APIs.  Currently
+	## returns one of bing_dataset or google_dataset
+
+	_dynamic !current_package!
+	
+	_return !current_package!.all_packages[:user][(if_ve_acp.geocoding_api_vendor_name + :_dataset).as_symbol()]
+_endmethod
+$
+_pragma(classify_level=restricted, topic={wmc_route_finder})
+_method ve_swaf_plugin.stop_acp()
+	## stop_acp() : _unset
+	##
+	## kills the if_ve_acp.
+
+
+	_for n _over range(1,5)
+	_loop
+		if_ve_acp.locked_end(_false)
+	_endloop
+	
+
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.adjust_birdseye_shift(_optional scale_factor)
+	## adjust_birdseye_shift() : _unset
+	##
+	## adjusts birdseye_rwo_record.lat_shift based on the current
+	## trail's first and last coordinates 
+	
+	_if (info << _self.databus_request_data( :map_trail )) _isnt _unset
+	_then
+		(source, trail) << (_scatter info)
+	_endif 
+
+	_if trail _is _unset _orif
+	    trail.empty?
+	_then
+		condition.raise(:user_error,:string,_self.message(:place_trail_point))
+	_endif
+	
+	_local pg << trail.as_pseudo_geometry
+	_local trail_lat_shift
+	_local mv << _self.current_map_view
+	
+	_block
+		_dynamic !current_coordinate_system! << coordinate_system.new_proj_long_lat(:wgs84,:degree)
+		
+		_dynamic !if_wmc_birdseye_direction!
+		scale_factor << scale_factor.default(1.0)
+
+		_local view_rotation << mv.current_view_parameters().rotation.radians_to_degrees
+		_if view_rotation >= 315 _orif
+		    view_rotation < 45
+		_then
+			!if_wmc_birdseye_direction! << "n"
+			
+		_elif view_rotation >= 45 _andif
+		      view_rotation < 135
+		_then
+			!if_wmc_birdseye_direction! << "w"
+			
+		_elif view_rotation >= 135 _orif
+		      view_rotation < 225
+		_then
+			!if_wmc_birdseye_direction! << "s"
+		_elif view_rotation >= 225 _orif
+		      view_rotation < 315
+		_then
+			!if_wmc_birdseye_direction! << "e"
+		_endif
+
+		trail_lat_shift << (pg.last_coord.y - pg.first_coord.y)*scale_factor
+	_endblock
+
+	_dynamic !current_coordinate_system!
+
+	_local world_to_ll_xform << transform.new_converting_cs_to_cs(!current_coordinate_system!,
+								      wmc_dataset.LONGLAT_COORDINATE_SYSTEM)
+	_local pixel_to_world_xform << mv.window.transform.inverse()
+	_local pixel_to_ll_xform << pixel_to_world_xform.multiply(world_to_ll_xform)
+	_local ll_bb << bounding_box.new_from(mv.window.bounds).transformed(pixel_to_ll_xform).bounds
+	
+	_local lat_shift << birdseye_rwo_record.lat_shift_for_bounds(ll_bb)
+	_local new_lat_shift << lat_shift + trail_lat_shift
+	birdseye_rwo_record.set_lat_shift(new_lat_shift,ll_bb)
+	mv.render()
+	
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.tilt_map_changed(tilt_map?)
+	## tilt_map_changed(boolean TILT_MAP?) : _unset
+	
+	map_view.INT!WMC_TILT_MAP? << tilt_map?
+	_local mv << _self.current_map_view
+
+	mv.set_view(mv.current_view_parameters())
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.rotate_map(direction)
+	
+
+	_local angle << property_list.new_with(:north,0,
+					       :south,180)[direction]
+
+	_local mv << _self.current_map_view
+	_local params << mv.current_view_parameters()
+	params.rotation << angle.degrees_to_radians
+
+	mv.set_view(params)
+	
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.save_birdseye_shift_cache()
+
+
+	_local fd << file_dialog.new(_self,:|int!save_birdseye_shift_cache()|)
+
+	fd.title << _self.message(:save_birdseye_shift_cache)
+	
+	fd.activate()
+
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.int!save_birdseye_shift_cache(filename)
+
+	birdseye_rwo_record.save_lat_shift_cache_to_file(filename)
+
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.load_birdseye_shift_cache()
+
+
+	_local fd << file_dialog.new(_self,:|int!load_birdseye_shift_cache()|)
+
+	fd.title << _self.message(:load_birdseye_shift_cache)
+	
+	fd.activate()
+
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method ve_swaf_plugin.int!load_birdseye_shift_cache(filename)
+
+	birdseye_rwo_record.load_lat_shift_cache_from_file(filename)
+
+_endmethod
+$
+
+
+
+
+
+
+

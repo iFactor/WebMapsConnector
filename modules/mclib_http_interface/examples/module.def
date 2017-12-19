@@ -1,0 +1,10 @@
+mclib_http_interface_examples	4000
+
+description
+	Support for the HTTP protocol - Examples
+end
+
+requires
+	mclib_package	
+	mclib_http_interface
+end

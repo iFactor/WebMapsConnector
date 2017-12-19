@@ -1,0 +1,48 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+def_slotted_exemplar(:weatherbug_lightning_rwo_record,
+		    {},
+		    {:wmc_rwo_record})
+$
+
+weatherbug_lightning_rwo_record.define_shared_constant(:DATASET_NAME,
+	:weatherbug_dataset,
+	:private)
+$
+_pragma(classify_level=basic, usage={subclassable})
+## an extra string that is sent to the ACP at rendering time
+## that can be used to pass any special rendering information. 
+weatherbug_lightning_rwo_record.define_shared_variable(:EXTRA_RENDERING_INFO,
+	# 15 minute delay plus 180 minute time span
+	write_string("&initialDelay=",15*60000,"&timespan=",180*60000),
+	:public)
+$
+_pragma(classify_level=basic, usage={subclassable})
+## an opacity value that is sent to the ACP to tell it how much
+## transparency to give self's tiles.  1.0 is fully opaque.
+## 0.0 is fully transparent.
+weatherbug_lightning_rwo_record.define_shared_variable(:OPACITY,
+	1.0,
+	:public)
+$

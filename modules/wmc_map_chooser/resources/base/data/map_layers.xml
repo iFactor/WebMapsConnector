@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="windows-1252" standalone="yes"?>
+<serial_xml_thing format="1">
+	<keyed class="sw:property_list" size="10">
+		<entry key="arcgis_dataset">
+			<indexed class="sw:simple_vector" size="2">
+				<symbol>world_street_map</symbol>
+				<symbol>world_imagery</symbol>
+			</indexed>
+		</entry>
+		<entry key="basemapat_dataset">
+			<indexed class="sw:simple_vector" size="1">
+				<symbol>road_tile</symbol>
+			</indexed>
+		</entry>
+		<entry key="bing_dataset">
+			<indexed class="sw:simple_vector" size="4">
+				<symbol>aerial_tile</symbol>
+				<symbol>aerial_labelled_tile</symbol>
+				<symbol>road_tile</symbol>
+				<symbol>traffic_tile</symbol>
+			</indexed>
+		</entry>
+		<entry key="birdseye_dataset">
+			<indexed class="sw:simple_vector" size="2">
+				<symbol>birdseye</symbol>
+				<symbol>birdseye_labelled</symbol>
+			</indexed>
+		</entry>
+		<entry key="mapquest_dataset">
+			<indexed class="sw:simple_vector" size="2">
+				<symbol>tile</symbol>
+				<symbol>aerial_tile</symbol>
+			</indexed>
+		</entry>
+		<entry key="google_dataset">
+			<indexed class="sw:simple_vector" size="4">
+				<symbol>aerial_tile</symbol>
+				<symbol>aerial_labelled_tile</symbol>
+				<symbol>road_tile</symbol>
+				<symbol>terrain_tile</symbol>
+			</indexed>
+		</entry>
+		<entry key="weatherbug_dataset">
+			<indexed class="sw:simple_vector" size="2">
+				<symbol>doppler_radar</symbol>
+				<symbol>lightning_strikes</symbol>
+			</indexed>
+		</entry>
+		<entry key="spatialstream_dataset">
+			<indexed class="sw:simple_vector" size="1">
+				<symbol>tile</symbol>
+			</indexed>
+		</entry>
+		<entry key="osm_dataset">
+			<indexed class="sw:simple_vector" size="3">
+				<symbol>osmarender_tile</symbol>
+				<symbol>cyclemap_tile</symbol>
+				<symbol>mapnik_tile</symbol>
+			</indexed>
+		</entry>
+		<entry key="wms_dataset">
+			<indexed class="sw:simple_vector" size="0">
+			</indexed>
+		</entry>
+
+	</keyed>
+</serial_xml_thing>

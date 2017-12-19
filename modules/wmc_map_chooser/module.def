@@ -1,0 +1,10 @@
+wmc_map_chooser	1
+
+description
+	GUI for selecting which WMC layers to render.
+end
+
+requires
+	wmc_som
+end
+

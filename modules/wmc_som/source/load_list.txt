@@ -1,0 +1,27 @@
+#% text_encoding = iso8859_1
+
+globals
+
+conditions
+
+wms_capability
+
+wmc_rwo_record
+wmc_rwo_record_static_map
+wmc_geocode_result
+
+wmc_tile
+wmc_dataset
+wmc_dataset_manager
+ve_swaf_plugin
+sw_action
+
+if_ve_acp
+
+ve_som_about_dialog
+ve_som_about_dialog_framework
+
+
+additions/
+
+vendors/

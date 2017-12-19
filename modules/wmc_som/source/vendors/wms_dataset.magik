@@ -1,0 +1,410 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+def_slotted_exemplar(:wms_dataset,
+		    {
+			    {:collection_name_counter,0,:readable},
+			    {:a_wms_capability,_unset,:writable}
+		    },
+		    {:wmc_dataset})
+$
+_pragma(classify_level=advanced, usage={redefinable})
+## DATASET_NAME : symbol
+##
+## the name of the Wms Dataset.  This is necessary to link the
+## WMC Dataset's SOC definition with a suitable
+## transient_dataset.DATASET_INSTANCE_METADATA definition.
+wms_dataset.define_shared_constant(:DATASET_NAME,
+	:wms_dataset,
+	_false)
+$
+_pragma(classify_level=advanced, usage={redefinable})
+_method wms_dataset.init(_gather args)
+	_super.init(_scatter args)
+
+	.collection_name_counter << 0
+
+	_return _self
+	
+_endmethod
+$
+_pragma(classify_level=advanced, usage={redefinable})
+_method wms_dataset.get_collection_name_counter()
+
+	_local val << .collection_name_counter
+	
+	.collection_name_counter +<< 1
+
+	_return val 
+_endmethod
+$
+_pragma(classify_level=advanced, usage={redefinable})
+_method wms_dataset.add_layer_or_dataset(a_layer_or_dataset)
+
+	_if a_layer_or_dataset.is_kind_of?(wms_capability)
+	_then
+		_self.add_wms_capability(a_layer_or_dataset)
+		
+	_elif a_layer_or_dataset[:layers] _isnt _unset 
+	_then
+		_self.int!add_capability_properties(a_layer_or_dataset)
+	_else
+		_self.add_layer(a_layer_or_dataset)
+	_endif
+_endmethod
+$
+_pragma(classify_level=advanced, usage={redefinable})
+_method wms_dataset.remove_layer_or_dataset(a_layer_or_dataset)
+
+	_if a_layer_or_dataset.is_kind_of?(wms_capability)
+	_then
+		_self.remove_wms_capability(a_layer_or_dataset)
+		
+	_elif a_layer_or_dataset[:layers] _isnt _unset 
+	_then
+		_self.int!remove_capability_properties(a_layer_or_dataset)
+	_else
+		_self.remove_layer(a_layer_or_dataset)
+	_endif
+_endmethod
+$
+
+
+_pragma(classify_level=advanced)
+_method wms_dataset.add_wms_capability(capability)
+	## add_wms_capability(wms_capability CAPABILITY) : _unset
+	##
+	## this method should be called directly on the WMS_DATASET
+	## exemplar and *NOT* on subclasses.
+	_self.int!add_capability_properties(capability.parse())
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method wms_dataset.remove_wms_capability(capability)
+	## remove_wms_capability(wms_capability CAPABILITY) : _unset
+	##
+	## this method should be called directly on the WMS_DATASET
+	## exemplar and *NOT* on subclasses.
+	_self.int!remove_capability_properties(capability.parse())
+_endmethod
+$
+_pragma(classify_level=restricted)
+_private _method wms_dataset.int!add_capability_properties(capability_properties)
+	## int!add_capability_properties(property_list CAPABILITY_PROPERTIES) : _unset
+	##
+	## this method should be called directly on the WMS_DATASET
+	## exemplar and *NOT* on subclasses.
+	
+	
+	_for i_layer _over capability_properties[:layers].fast_elements()
+	_loop
+		_self.add_layer(i_layer)
+	_endloop
+	
+_endmethod
+$
+_pragma(classify_level=restricted)
+_private _method wms_dataset.int!remove_capability_properties(capability_properties)
+	## int!remove_capability_properties(property_list CAPABILITY_PROPERTIES) : _unset
+	##
+	## this method should be called directly on the WMS_DATASET
+	## exemplar and *NOT* on subclasses.
+	
+	
+	_for i_layer _over capability_properties[:layers].elements()
+	_loop
+		_self.remove_layer(i_layer)
+	_endloop
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method wms_dataset.add_layer(layer_properties)
+	## add_layer(hash_table LAYER_PROPERTIES)
+	##
+	## this method should be called directly on the WMS_DATASET
+	## exemplar and *NOT* on subclasses.
+	
+	_dynamic !current_package! << !current_package!.all_packages[:user]
+	_dynamic !current_languages!
+	
+	_local service << layer_properties[:service_capability]
+
+	# define a new subclass of wms_dataset based on the layer's
+	# service capability's name 
+	_local name            << service[:title].canonical.convert_to_non_escape_string().as_symbol()
+	_local ds_name         << name + :_wd #:_wms_dataset
+	_local ds_manager_name << name + :_wdm #:_wms_dataset_manager
+	_local a_ds_manager
+	_local a_ds
+	
+	_if !current_package![ds_name] _is _unset 
+	_then
+		def_slotted_exemplar(ds_name,{},{:wms_dataset})
+	        def_slotted_exemplar(ds_manager_name,{},{:wms_dataset_manager})
+
+		_local mh << message_handler.new(ds_name)
+		_for i_language _over !current_languages!.fast_elements()
+		_loop
+			mh.create_message(:external_name,i_language,service[:title])
+		_endloop
+
+		a_ds         << !current_package![ds_name]
+		a_ds.define_shared_constant(:DATASET_NAME,ds_name,_false)
+	        a_ds.define_shared_constant(:DATASET_INSTANCE_METADATA,
+	                                    property_list.new_with(
+						    a_ds.DATASET_NAME,
+						    property_list.new_with(
+							    :collections, property_list.new(),
+							    :world_metadata, property_list.new_with(:name,:gis,
+												    :id, 0,
+												    :coordinate_system, a_ds.MERCATOR_COORDINATE_SYSTEM
+											   )
+								  )
+							  ),_false)
+		
+		a_ds_manager << !current_package![ds_manager_name]
+
+		a_ds_manager.define_shared_constant( :DATASET_EXEMPLAR,!current_package![ds_name],:private )
+	        a_ds_manager.define_shared_constant( :DATASET_EXEMPLAR_NAME,ds_name,:private)
+	        a_ds_manager.define_shared_constant( :DRAWING_PRIORITY,property_list.new(),:public)
+
+	        # the first time we set up a new WMS_DATASET, we need to
+	        # populate its :A_WMS_CAPABILITY slot with a suitable
+	        # property_list so that we can serialize it later if
+	        # necessary.  When we create it for the first time, its :layers
+	        # property should be an empty rope that will be populated later
+	        # in this method
+	        a_ds.define_shared_constant(:WMS_CAPABILITY,service.deep_copy(),:public)
+		a_ds.WMS_CAPABILITY[:layers] << rope.new()
+	         
+	_else
+		a_ds         << !current_package![ds_name]
+		a_ds_manager << !current_package![ds_manager_name]
+	_endif
+
+	_for x _over a_ds.WMS_CAPABILITY[:layers].fast_elements()
+	_loop
+		_if x[:name] = layer_properties[:name]
+		_then
+			_return
+		_endif 
+	_endloop
+
+	a_ds.WMS_CAPABILITY[:layers].add_last(layer_properties.deep_copy())
+	
+	# define a new subclass of wms_rwo_record based on the layer's
+	# name. 
+	_local exemplar_name << layer_properties[:name].canonical.convert_to_non_escape_string().as_symbol()
+
+	_local mh << message_handler.new(exemplar_name)
+	_for i_language _over !current_languages!.fast_elements()
+	_loop
+		mh.create_message(:self,i_language,layer_properties[:title])
+	_endloop
+
+	
+	_if !current_package![exemplar_name] _is _unset 
+	_then
+		def_slotted_exemplar(exemplar_name,{},{:wms_rwo_record})
+	_endif
+
+	_local exemplar << !current_package![exemplar_name]
+	
+	exemplar.base_url   << service[:urls].an_element()
+
+	_local parameters << property_list.new()
+
+	_if service[:srs].includes_by_equality?("EPSG:3785")
+	_then
+		# use the Spherical Mercator where available...
+		parameters[:srs] << "EPSG:3785"
+	_else
+		# ... otherwise default to Lat/Long.
+		parameters[:srs] << "EPSG:4326"
+	_endif
+	
+	parameters[:layers]      << layer_properties[:name]
+	parameters[:exceptions]  << write_string_with_separator(service[:exceptions],%,)
+	_local format_order << {"image/png","image/jpg","image/jpeg","image/bmp"}
+	_local sorted_formats << sorted_collection.new_from(service[:formats],
+							    _proc(a,b)
+								    _import format_order
+								    
+								    _local idx1 << format_order.index_equal_of(a).default(bignum)
+								    _local idx2 << format_order.index_equal_of(b).default(bignum)
+
+								    >> idx1 _cf idx2
+							    _endproc
+						   )
+	parameters[:format]      << sorted_formats.first
+	parameters[:version]     << service[:version]
+	parameters[:transparent] << "true"
+	
+	exemplar.parameters << parameters
+	exemplar.init_extra_rendering_info()
+	
+	a_ds_manager.DRAWING_PRIORITY[exemplar_name] << layer_properties[:drawing_priority].default(-24)
+	
+	_local pl << property_list.new_with(
+			     :fields,property_list.new_with(:id, {:physical, :ds_int, :key, _unset,:external_name, "Object ID"},
+							    :tile, {:geometry, :wmc_tile,:nonman}
+						   ),
+			     :exemplar, exemplar,
+			     :external_name, layer_properties[:title]
+				   )
+	
+	a_ds.DATASET_INSTANCE_METADATA[a_ds.DATASET_NAME][:collections][exemplar_name] << pl
+
+	a_ds << gis_program_manager.cached_dataset(ds_name)
+
+	_if a_ds _isnt _unset 
+	_then
+		
+		smallworld_product.applications.an_element().plugin("ve").sys!perform(:new_remove_dataset|()|,a_ds)
+	_endif
+	
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method wms_dataset.remove_layer(layer_properties)
+	## remove_layer(hash_table LAYER_PROPERTIES)
+	##
+	## this method should be called directly on the WMS_DATASET
+	## exemplar and *NOT* on subclasses.
+	
+	_dynamic !current_package! << !current_package!.all_packages[:user]
+	
+	_local service << layer_properties[:service_capability]
+
+	# define a new subclass of wms_dataset based on the layer's
+	# service capability's name 
+	_local name            << service[:title].convert_to_non_escape_string().as_symbol()
+	_local ds_name         << name + :_wd #:_wms_dataset
+	_local ds_manager_name << name + :_wdm #:_wms_dataset_manager
+	
+	_if !current_package![ds_name] _is _unset 
+	_then
+		# if there is no appropriate WMS_DATASET defined, then we can
+		# assume that the layer also doesn't exist and therefore we do
+		# not need to proceed and further with this method.
+		_return 
+	_endif
+
+	_local exemplar_name << layer_properties[:name].convert_to_non_escape_string().as_symbol()
+	
+	_local a_ds << !current_package![ds_name]
+
+	# when removing a layer, we need to remove its references from
+	# both the DATASET_INSTANCE_METADATA and the WMS_CAPABILITY
+	# shared constants.
+	_local instance_metadata << a_ds.DATASET_INSTANCE_METADATA[ds_name]
+	instance_metadata[:collections].remove_key(exemplar_name)
+
+	_local idx_to_remove << _unset 
+	
+	_for i_idx,i_pl _over a_ds.WMS_CAPABILITY[:layers].fast_keys_and_elements()
+	_loop
+		_if i_pl[:name] = layer_properties[:name]
+		_then
+			idx_to_remove << i_idx
+		_endif
+	_endloop
+
+	_if idx_to_remove _isnt _unset 
+	_then
+		a_ds.WMS_CAPABILITY[:layers].remove_nth(idx_to_remove)
+		_try
+			remove_exemplar(exemplar_name,_true)
+		_when removing_exemplar
+		      
+		_endtry
+		!current_package!.remove_key(exemplar_name)
+		
+	_endif
+
+	# finally, we need to do a quick check to see if this was the
+	# last layer defined on the dataset.  In that case, it makes
+	# sense to remove the dataset and dataset_manager definitions.
+	_if a_ds.WMS_CAPABILITY[:layers].empty? _andif
+	    a_ds.DATASET_INSTANCE_METADATA[ds_name][:collections].empty?
+	_then
+		_try
+			remove_exemplar(ds_name,_true)
+		_when removing_exemplar
+		      
+		_endtry
+
+		!current_package!.remove_key(ds_name)
+
+		_try
+			remove_exemplar(ds_manager_name,_true)
+		_when removing_exemplar
+		      
+		_endtry
+
+		!current_package!.remove_key(ds_manager_name)
+	_endif
+
+	system.gc(_true)
+	system.gc(_true)
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method wms_dataset.save_configuration(filename)
+	## save_configuration(string FILENAME) : _unset
+	##
+	## saves the current configuration for all subclasses of self
+	## to FILENAME.  This file can later be used to recreate the
+	## same configuration using wms_dataset.load_configuration().
+	## This method should be called directly on the wms_dataset
+	## exemplar.
+
+	_local config << rope.new()
+	_for n _over wms_dataset.method_table.children(_true)
+	_loop
+		config.add_last(n.metadata[:exemplar].WMS_CAPABILITY)
+	_endloop
+
+	serial_xml_thing.write_thing_to(config,filename)
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method wms_dataset.load_configuration(filename)
+	## load_configuration(string FILENAME) : _unset
+	##
+	## Recreate the WMS configurations previously saved using
+	## wms_dataset.save_configuration().  This method should be
+	## called directly on the wms_dataset exemplar.
+
+	_local config << serial_xml_thing.read_thing_from(filename)
+
+	_for n _over config.fast_elements()
+	_loop
+		_self.int!add_capability_properties(n)
+	_endloop
+	
+	
+_endmethod
+$
+
+

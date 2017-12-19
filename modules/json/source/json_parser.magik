@@ -1,0 +1,299 @@
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+#% text_encoding = cp1252
+_package sw
+$
+_pragma(classify_level=basic)
+## a JSON parser that reads a JSON string and converts it into
+## relevant data types in Magik (e.g., jason_object,
+## jason_array, and other basic Magik types).
+def_slotted_exemplar(:json_parser,{},{})
+$
+_pragma(classify_level=restricted)
+_private _method json_parser.fastforward_white_space(json_stream)
+	## fastforward_white_space(internal_text_input_stream JSON_STREAM) : _unset
+	##
+	## fastforward to the next non-space character.
+	_loop
+		_if json_stream.peek() _isnt %space
+		_then
+			_leave
+		_endif
+
+		_if json_stream.get() _is _unset 
+		_then
+			_leave
+		_endif
+	_endloop
+_endmethod
+$
+_pragma(classify_level=basic)
+_method json_parser.parse_stream(a_text_stream)
+	## parse_stream(text_input_stream A_TEXT_STREAM) : json_object
+	##
+	## parses A_TEXT_STREAM to return a json_object
+
+	_return _self.get_json_value(a_text_stream)
+_endmethod
+$
+_pragma(classify_level=basic)
+_method json_parser.parse_string(a_json_string)
+	## parse_string(string A_JSON_STRING) : json_object
+	##
+	## parses A_JSON_STRING to return a json_object
+
+	_local str << internal_text_input_stream.new(a_json_string)
+	_return _self.get_json_value(str)
+_endmethod
+$
+_pragma(classify_level=basic)
+_method json_parser.parse_file(a_filename)
+	## parse_file(string A_FILENAME) : json_object
+	##
+	## parses A_JSON_STRING to return a json_object
+
+	_local str << external_text_input_stream.new(a_filename)
+	_local obj
+	
+	_protect
+		obj << _self.get_json_value(str)
+	_protection
+		str.close()
+	_endprotect
+
+	_return obj
+_endmethod
+$
+
+
+_pragma(classify_level=restricted)
+_private _method json_parser.get_json_value(json_stream)
+	## get_json_value(internal_text_input_stream JSON_STREAM) : object
+	##
+	## returns a suitable JSON value.  One of:
+	##   - string
+	##   - number
+	##   - json_object
+	##   - json_array
+	##   - _true
+	##   - _false
+	##   - _unset
+
+	_self.fastforward_white_space(json_stream)
+
+	_local token << json_stream.peek()
+
+	_if token _is %"
+	_then
+		_return _self.get_json_string(json_stream)
+	_elif token _is %{
+	_then
+		_return _self.get_json_object(json_stream)
+
+	_elif token _is %[
+	_then
+		_return _self.get_json_array(json_stream)
+
+	_elif token _is %t
+	_then
+		json_stream.get_n(4)
+		_return _true
+		
+	_elif token _is %f
+	_then
+		json_stream.get_n(5)
+		_return _false
+		
+	_elif token _is %n
+	_then
+		json_stream.get_n(4)
+		_return _unset
+
+	_else
+		_return _self.get_json_number(json_stream)
+	_endif
+_endmethod 
+$
+_pragma(classify_level=restricted)
+_private _method json_parser.get_json_string(json_stream)
+	## get_json_string(internal_text_input_stream JSON_STREAM) : string
+	##
+	## returns the JSON string
+	
+	_local a_stream << internal_text_output_stream.new()
+	
+	_local token << json_stream.get()
+
+	_if token _isnt %"
+	_then
+		_return _unset 
+	_endif
+	
+	_loop
+		_if (token << json_stream.get()) _is _unset
+		_then
+			_leave
+		_endif
+
+		_if token _is %\
+		_then
+			_local peek_token << json_stream.peek()
+
+			_if peek_token = %"
+			_then
+				token << json_stream.get()
+
+			_elif peek_token = %n 
+			_then
+				json_stream.get()
+				token << newline_char
+				
+			_elif peek_token = %t 
+			_then
+				json_stream.get()
+				token << tab_char
+			_endif
+		_elif token _is %"
+		_then
+			_leave
+		_endif
+		
+		a_stream.write(token)
+	_endloop
+
+	_return a_stream.string
+_endmethod
+$
+_pragma(classify_level=restricted)
+_private _method json_parser.get_json_number(json_stream)
+	## get_json_number(internal_text_input_stream JSON_STREAM) :number
+	##
+	## returns a number
+
+	_local a_stream << internal_text_output_stream.new()
+
+	_local peek_token 
+	_local token
+
+	_loop
+		peek_token << json_stream.peek()
+
+		_if {%space , %, , %] , %}}.includes?(peek_token)
+		_then
+			_leave
+		_endif
+
+		_if (token << json_stream.get()) _is _unset 
+		_then
+			_leave
+		_endif
+
+		a_stream.write(token)
+	_endloop
+
+	_return a_stream.string.as_number()
+_endmethod
+$
+_pragma(classify_level=restricted)
+_private _method json_parser.get_json_object(json_stream)
+	## get_json_object(internal_text_input_stream JSON_STREAM) : json_object
+	##
+	## returns the JSON string
+	
+	_local a_stream << internal_text_output_stream.new()
+	
+	_local token << json_stream.get()
+
+	_if token _isnt %{
+	_then
+		_return _unset 
+	_endif
+
+	_local return_value << json_object.new()
+	_local name , value
+
+	_loop
+		_self.fastforward_white_space(json_stream)
+		
+		name << _self.get_json_string(json_stream)
+		
+		_self.fastforward_white_space(json_stream)
+
+		# step past the ':' character
+		json_stream.get()
+
+		_self.fastforward_white_space(json_stream)
+
+		return_value[name] << _self.get_json_value(json_stream)
+
+		_self.fastforward_white_space(json_stream)
+		
+		_if json_stream.peek() _is %}
+		_then
+			json_stream.get()
+			_leave
+		_endif
+
+		# step past the ',' character
+		json_stream.get()
+
+	_endloop
+
+	_return return_value
+_endmethod 
+$
+_pragma(classify_level=restricted)
+_private _method json_parser.get_json_array(json_stream)
+	## get_json_array(internal_text_input_stream JSON_STREAM) : json_array
+	##
+	## returns the JSON array
+	
+	_local a_stream << internal_text_output_stream.new()
+	
+	_local token << json_stream.get()
+
+	_if token _isnt %[
+	_then
+		_return _unset 
+	_endif
+
+	_local return_value << json_array.new()
+	_local value
+
+	_loop
+		_self.fastforward_white_space(json_stream)
+
+		return_value.add_last(_self.get_json_value(json_stream))
+
+		_self.fastforward_white_space(json_stream)
+
+		_if json_stream.peek() _is %]
+		_then
+			json_stream.get()
+			_leave
+		_endif
+
+		# step past the ',' character
+		json_stream.get()
+	_endloop
+
+	_return return_value
+_endmethod 
+$

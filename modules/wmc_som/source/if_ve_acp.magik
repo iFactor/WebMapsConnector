@@ -1,0 +1,3901 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+def_slotted_exemplar(:if_ve_acp,
+		    {
+			    {:trace_level,_unset},
+			    {:x,_unset}
+		    },
+		    {:mclib_dotnet_acp})
+$
+if_ve_acp.define_slot_access(:trace_level,:read,:public)
+$
+# for some reason, the ACP code does not handle sending empty
+# strings back/forth, so we need to agree on a value that will
+# constitute and empty string.
+if_ve_acp.define_shared_constant(:EMPTY_STRING,"||||empty||||",:private)
+$
+if_ve_acp.define_shared_constant(:UserWebProxyDataKey,"WebMapsConnectorWebProxyString.config",:private)
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.init()
+
+	_dynamic !show_string_length! << 200
+
+	_dynamic !if_in_packaging_process?!
+	
+	_super.init()
+
+	_local acp_path << system.getenv("SW_ACP_PATH")
+	_local server_res_dir << _self.get_bin_dir()
+
+	_local res_dir << _self.get_local_bin_dir()
+
+	_if !if_in_packaging_process?!
+	_then
+		# when we are building the release package, we don't want to
+		# copy the ACP to a local directory
+		res_dir << server_res_dir
+	_else 
+		# in normal usage, we do need to copy the ACP code to a local
+		# directory to get around the .Net code security checks.
+		write(message_handler.new(_self.class_name).human_string(:copying_files_locally))
+		_local cmd << write_string("xcopy /D /Y /F ",%",server_res_dir,%"," ",%",res_dir,%" )
+		_local str << system.input_from_command(cmd)
+
+		_local a_line
+		_loop
+			_if (a_line << str.get_line()) _is _unset 
+			_then
+				_leave
+			_endif
+
+			_if a_line.canonical.index_of_seq("sw_ve_acp.exe.config") _isnt _unset 
+			_then
+				_self.trace(3,"clearing config document cache")
+				_self.INT!CONFIG_DOCUMENT_CACHE << _unset 
+			_endif
+		_endloop
+	_endif
+	
+	.command << {system.pathname_down(res_dir,"sw_ve_acp.exe")}
+	.program_ident << "sw_ve_acp"
+
+	_self.cleanup_temp_files()
+	
+	>> _self 
+_endmethod 
+$
+_pragma(classify_level=restricted)
+_private _method if_ve_acp.cleanup_temp_files()
+	## cleanup_temp_files() : _unset
+	##
+	## sometimes some WMC temp files don't get cleaned up properly
+	## due to file locking.  The method will clean up those temp files.
+
+	_local file_patterns << {"if_ve_acp_canvas*.bmp*",
+				 "if_ve_acp_canvas*.png",
+				 "map_animator*.bmp",
+				 "spatialstream_parcel*.xml"}
+
+	_local dc , filename
+	
+	_for i_pattern _over file_patterns.fast_elements()
+	_loop
+		dc << directory_channel.new(system.temp_directory_name,
+					    i_pattern)
+
+		_protect
+			_loop
+				_if (filename << dc.get_full()) _is _unset 
+				_then
+					_leave
+				_endif
+
+				system.unlink(filename)
+			_endloop
+		_protection
+			dc.close()
+		_endprotect
+	_endloop
+	
+	
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.init_if_necessary()
+	## init_if_necessary() : if_ve_acp
+	##
+	## if .sw_acp_path_set? is _false, then call self.init().
+	## Otherwise do nothing.
+
+	_self.validate_sw_auth()
+	
+	_if .pid _is _unset 
+	_then
+		_return _self.init()
+	_else
+		_return _self
+	_endif
+	
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.start_executable()
+	## 
+	## 
+
+	_local ok? << _false 
+
+	_protect _locking _self
+		 _self.init_if_necessary()
+
+		 _self.locked_start()
+		 
+		 ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.get_bin_dir()
+	## 
+	## 
+	module_name << _self.module_name
+	_for a_dir _over smallworld_product.full_resource_directories( module_name )
+	_loop
+		fname << system.pathname_down(a_dir, "bin")
+		_if system.file_exists?( fname )
+		_then
+			found_file << fname
+			_leave
+		_endif
+	_endloop
+	_return system.canonical_path_string(found_file)
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.get_local_bin_dir()
+	## 
+	## creates a local BIN directory named WMC<revision_number>
+	## that stores the ACP executables for that WMC version.
+
+	_local local_dir << system.canonical_path_string(system.pathname_down(system.temp_directory_name,
+									      write_string("wmc",_self.revision)))
+	
+	_if _not system.file_exists?(local_dir)
+	_then
+		system.mkdir(local_dir)
+	_endif
+
+	_return local_dir
+_endmethod
+$
+_pragma(classify_level=restricted)
+_method if_ve_acp.quit()
+	## 
+	## 
+	_local ok? << _false
+	_protect
+		_locking _self
+		_self.locked_start()
+		_self.put_signed_int(0)
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect 
+		
+_endmethod
+$
+
+
+_pragma(classify_level=restricted)
+_method if_ve_acp.get_try_result()
+	## get_try_result() : _unset
+	##
+	## corresponds to a acpPutTryResults
+
+	_if _not _self.get_boolean()
+	_then
+		_local message << _self.get_chars16()
+		_local stacktrace << _self.get_chars16()
+
+		write(message)
+		write(stacktrace)
+		
+		condition.raise(:user_error,:string,message)
+	_endif
+_endmethod
+$
+_pragma(classify_level=restricted)
+_method if_ve_acp.put_transform(a_transform)
+	## put_transform(transform A_TRANSFORM) : _unset
+	##
+	## sends A_TRANSFORM to the ACP.
+
+	_local c << _allresults a_transform.raw_affine_components()
+	_self.put_short_float(c[1])
+	_self.put_short_float(c[4])
+	_self.put_short_float(c[2])
+	_self.put_short_float(c[5])
+	_self.put_short_float(c[3])
+	_self.put_short_float(c[6])
+
+	
+_endmethod
+$
+_pragma(classify_level=restricted)
+_method if_ve_acp.send_method_command(cmd)
+	## send_method_command(integer CMD) : _unset
+	##
+	## sends CMD to the ACP to tell it what ACP method we are
+	## calling.
+	# This method can also be redefined to check for other
+	# initialization information to send to/from the ACP and
+	# Magik. 
+
+
+	_self.put_signed_int(cmd)
+
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.get_geocode(query,_gather key_value_pairs)
+	## get_geocode(string QUERY) : rope of property_list
+	##
+	## sends QUERY to the the appropriate geocode API service
+	## based on self.geocoding_api_vendor_name
+	##
+	## Returns a rope of property_lists where each property_list
+	## has the following 
+	## data:
+	##
+	## :latitude       - float
+	## :longitude      - float
+	## :location       - a pseudo_point at latitude/longitude
+	## :display        - the query display string as resolved by Bing
+	## :original_query - the original query string
+
+	## kept for backward compatibility for the GUI.  For full
+	## results, use self.bing_geocode or self.google_geocode()
+	##
+
+	##
+	## the optional KEY_VALUE_PAIRS 
+	##
+	## :center_coord - A coordinate (in Lat/Long).  If this is
+	##                 provided, then the results will be ranked
+	##                 based on proximity to this coordinate.
+	##
+	## see the vendor_specific *_geocode() method comments for
+	## additional valid KEY_VALUE_PAIRS.
+
+	_local kvp << property_list.new_with(_scatter key_value_pairs.default({}))
+
+	_local info
+	_local geocoding_api_vendor_name << _self.geocoding_api_vendor_name
+	
+	_if geocoding_api_vendor_name = "bing"
+	_then
+		
+		info << _self.bing_geocode(query).copy()
+		
+		_for i _over info.fast_elements()
+		_loop
+			i[:latitude]  << i[:location_info].first[:latitude]
+			i[:longitude] << i[:location_info].first[:longitude]
+			i[:location]  << i[:location_info].first[:location]
+			i[:display]   << i[:display_name]
+		_endloop
+		
+	_else
+		_local method_name << write_string(geocoding_api_vendor_name,"_geocode()").as_symbol()
+		
+		info << _self.perform(method_name,query,_scatter key_value_pairs).copy()
+
+		_for i _over info.fast_elements()
+		_loop
+			i[:latitude]   << i[:lat]
+			i[:longitude]  << i[:lng]
+			i[:display]    << i[:display_name]
+			i[:confidence] << i[:location_type] 
+		_endloop
+	_endif
+
+	_local center_coord << kvp[:center_coord]
+
+	# if we were given a center_coord, then we should sort the
+	# results based on the distance to that coordinate
+	_if center_coord.is_kind_of?(coordinate)
+	_then
+		_local sc << sorted_collection.new_from(info,
+							_proc(a,b)
+								_import center_coord
+								_local distance_a << center_coord.distance_to(coordinate(a[:longitude],a[:latitude]))
+								_local distance_b << center_coord.distance_to(coordinate(b[:longitude],b[:latitude]))
+								>> distance_a _cf distance_b
+							_endproc)
+
+		info << rope.new_from(sc)
+	_endif
+
+	
+	_return info
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.google_geocode(query)
+	## google_geocode(string QUERY) : rope of property_list
+	##
+	## sends QUERY to the Google Geocode service.  Returns a rope
+	## of property_lists where each property_list has the following 
+	## data:
+	##
+	## :latitude       - float
+	## :longitude      - float
+	## :location       - a pseudo_point at latitude/longitude
+	## :display        - the query display string as resolved by Bing
+	## :original_query - the original query string
+	_self.init_if_necessary()
+
+	_local result_count
+	_local res
+	_local address_component_count , address_components , address_component_pl
+	_local type_count , types
+	
+	_local ok? << _false
+	_protect
+		_locking _self
+		_self.locked_start()
+		_self.send_method_command(4)
+		_self.put_chars16(query)
+
+		_self.get_try_result()
+		
+		result_count << _self.get_signed_int()
+		res << rope.new()
+		
+		_for i_result_count _over 1.upto(result_count)
+		_loop
+			_local pl << property_list.new()
+			res.add_last(pl)
+
+			pl[:original_query] << query
+			pl[:display_name]   << _self.get_chars16()
+
+			address_component_count << _self.get_signed_int()
+			pl[:address_components] << address_components << rope.new()
+			
+			_for i_address_component_count _over 1.upto(address_component_count)
+			_loop
+				address_component_pl << property_list.new()
+				address_components.add_last(address_component_pl)
+
+				address_component_pl[:long_name]  << _self.get_chars16()
+				address_component_pl[:short_name] << _self.get_chars16()
+
+				type_count << _self.get_signed_int()
+				address_component_pl[:types] << types << rope.new()
+
+				_for i_type_count _over 1.upto(type_count)
+				_loop
+					types.add_last(_self.get_chars16())
+				_endloop
+				
+			_endloop
+
+			pl[:lat]           << _self.get_float()
+			pl[:lng]           << _self.get_float()
+			pl[:location_type] << _self.get_chars16()
+			pl[:location] << pseudo_point.new(coordinate.new(pl[:lng],pl[:lat]))
+			pl[:location].world << pseudo_world.new(google_dataset.LONGLAT_COORDINATE_SYSTEM)
+		_endloop
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect
+
+	>> res
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.mapquest_geocode(query)
+	## mapquest_geocode(string QUERY) : rope of property_list
+	##
+	## sends QUERY to the Mapquest Geocode service.  Returns a rope
+	## of property_lists where each property_list has the following 
+	## data:
+	##
+	## :latitude       - float
+	## :longitude      - float
+	## :location       - a pseudo_point at latitude/longitude
+	## :display        - the query display string as resolved by Mapquest
+	## :original_query - the original query string
+	_self.init_if_necessary()
+
+	_local result_count
+	_local res
+	_local address_component_count , address_components , address_component_pl
+	_local type_count , types
+	
+	_local ok? << _false
+	_protect
+		_locking _self
+		_self.locked_start()
+		_self.send_method_command(12)
+		_self.put_chars16(query)
+
+		_self.get_try_result()
+		
+		result_count << _self.get_signed_int()
+
+		res << rope.new()
+		
+		_for i_result_count _over 1.upto(result_count)
+		_loop
+			_local pl << property_list.new()
+			res.add_last(pl)
+
+			pl[:original_query] << query
+			pl[:display_name]   << _self.get_chars16()
+
+			pl[:class] << _self.get_chars16()
+			pl[:type] << _self.get_chars16()
+			
+			pl[:lat]           << _self.get_float()
+			pl[:lng]           << _self.get_float()
+			pl[:location] << pseudo_point.new(coordinate.new(pl[:lng],pl[:lat]))
+			pl[:location].world << pseudo_world.new(mapquest_dataset.LONGLAT_COORDINATE_SYSTEM)
+		_endloop
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect
+
+	>> res
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.bing_geocode(query)
+	## bing_geocode(string QUERY) : rope of property_list
+	##
+	## sends QUERY to the Bing Geocode service.  Returns a rope of
+	## property_lists where each property_list has the following
+	## data:
+	##
+	## :latitude       - float
+	## :longitude      - float
+	## :location       - a pseudo_point at latitude/longitude
+	## :display_name   - the query display string as resolved by Bing
+	## :original_query - the original query string
+	_self.init_if_necessary()
+
+	_local result_count
+	_local res
+	_local location_count
+	_local matchcode_count
+	
+	_local ok? << _false
+	_protect
+		_locking _self
+		_self.locked_start()
+		_self.send_method_command(3)
+		_self.put_chars16(query)
+
+		_self.get_try_result()
+		
+		result_count << _self.get_signed_int()
+		res << rope.new()
+		
+		_for i _over 1.upto(result_count)
+		_loop
+			_local pl << property_list.new()
+			res.add_last(pl)
+
+			pl[:original_query] << query
+			pl[:display_name]   << _self.get_chars16()
+			pl[:confidence]     << _self.get_chars16()
+			pl[:entity_type]    << _self.get_chars16()
+			
+			location_count << _self.get_signed_int()
+
+			_local location_info << pl[:location_info] << rope.new()
+			
+			_for j _over 1.upto(location_count)
+			_loop
+				_local location_pl << property_list.new()
+				location_info.add_last(location_pl)
+				location_pl[:latitude]           << _self.get_float()
+				location_pl[:longitude]          << _self.get_float()
+				location_pl[:calculation_method] << _self.get_chars16()
+				location_pl[:location] << pseudo_point.new(coordinate.new(location_pl[:longitude],location_pl[:latitude]))
+				location_pl[:location].world << pseudo_world.new(bing_dataset.LONGLAT_COORDINATE_SYSTEM)
+			_endloop
+
+			matchcode_count << _self.get_signed_int()
+
+			_local matchcode_info << pl[:matchcode_info] << rope.new()
+			
+			_for j _over 1.upto(matchcode_count)
+			_loop
+				matchcode_info.add_last(_self.get_chars16())
+			_endloop
+		_endloop
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect
+	>> res
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.get_route_request(start_info,end_info,_optional intermediate_info)
+	## get_route_request(property_list START_INFO,
+	##                   property_list END_INFO,
+	##                   optional ordered collection of property_lists INTERMEDIATE_INFO) : property_list of route info
+	##
+	## performs a route request between START_INFO and END_INFO
+	## with optional INTERMEDIATE_INFO in between.  All "point"
+	## arguments must be pseudo_points that have a well-defined
+	## world with a coordinate system.
+	##
+	## START_INFO and END_INFO must be a property_list keyed on
+	## :location and :label (optional).  If no :label is provided,
+	## then will default to values defined in if_ve_acp.msg.
+	##
+	## the INTERMEDIATE_INFO is an ordered collection of
+	## property_list values keyed on :location and :label
+	## (optional
+
+	_local method_name << write_string("get_",_self.geocoding_api_vendor_name,"_route_request()").as_symbol()
+
+	_return _self.perform(method_name,start_info,end_info,intermediate_info).copy()
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.get_bing_route_request(start_info,end_info,_optional intermediate_info)
+	## get_bing_route_request(property_list START_INFO,
+	##                        property_list END_INFO,
+	##                       optional ordered collection of property_lists INTERMEDIATE_INFO) : property_list of route info
+	##
+	## performs a route request between START_INFO and END_INFO
+	## with optional INTERMEDIATE_INFO in between.  All "point"
+	## arguments must be pseudo_points that have a well-defined
+	## world with a coordinate system.
+	##
+	## START_INFO and END_INFO must be a property_list keyed on
+	## :location and :label (optional).  If no :label is provided,
+	## then will default to values defined in if_ve_acp.msg.
+	##
+	## the INTERMEDIATE_INFO is an ordered collection of
+	## property_list values keyed on :location and :label
+	## (optional). 
+
+	_dynamic !current_coordinate_system! << bing_dataset.LONGLAT_COORDINATE_SYSTEM
+	
+	_self.init_if_necessary()
+
+	_if intermediate_info _is _unset 
+	_then
+		intermediate_info << {}
+	_endif
+
+	_local result << property_list.new()
+	_local directions << rope.new()
+	result[:directions] << directions
+
+	_local a_point , a_label
+	
+	_local mh << message_handler.new(_self.class_name)
+	
+	_local ok? << _false
+	_protect
+		_locking _self
+		_self.locked_start()
+		_self.send_method_command(7)
+
+		_self.get_try_result()
+		
+		_self.put_signed_int(intermediate_info.size)
+
+		# START POINT
+		a_point << start_info[:location].coord
+		
+		a_label << start_info[:label].default(mh.human_string(:route_default_start_label))
+		
+		_self.put_chars16(a_label)
+		_self.put_float(a_point.y)
+		_self.put_float(a_point.x)
+
+		# INTERMEDIATE POINTS
+		_for idx,info _over intermediate_info.fast_keys_and_elements()
+		_loop
+			a_point << info[:location].coord
+			a_label << info[:label].default(mh.human_string(:route_default_intermediate_label,_unset,idx))
+			
+			_self.put_chars16(a_label)
+			_self.put_float(a_point.y)
+			_self.put_float(a_point.x)
+		_endloop
+
+		# END POINT
+		a_point << end_info[:location]
+		a_label << end_info[:label].default(mh.human_string(:route_default_end_label))
+		
+		_self.put_chars16(a_label)
+		_self.put_float(a_point.y)
+		_self.put_float(a_point.x)
+
+
+		_local hintsCount
+		
+		_local legCount << _self.get_signed_int()
+
+		_local pw << pseudo_world.new(!current_coordinate_system!)
+		_local longitude , latitude
+		
+		_for i _over range(1,legCount)
+		_loop
+			_local itineraryCount << _self.get_signed_int()
+			
+			_for j _over range(1,itineraryCount)
+			_loop
+				_local pl << directions.add_last(property_list.new())
+				
+				longitude           << _self.get_float()
+				latitude            << _self.get_float()
+				pl[:location]       << pseudo_point.new(coordinate.new(longitude,latitude))
+				pl[:location].world << pw
+				pl[:text]           << _self.get_chars16()
+
+				# The .NET ACP has been configured to always return distance in
+				# :km. 
+				pl[:distance] << unit_value.new(_self.get_float(),:km)
+				# get total time
+				pl[:time] << time_interval.new_seconds(_self.get_unsigned_long())
+				
+			_endloop
+			
+		_endloop
+
+		# The .NET ACP has been configured to always return distance in
+		# :km. 
+		result[:total_distance] << unit_value.new(_self.get_float(),:km)
+		# get total time
+		result[:total_time] << time_interval.new_seconds(_self.get_unsigned_long())
+
+		_local pathPointCount << _self.get_signed_int()
+
+		_local points << sector.new()
+		
+		_for idx _over range(1,pathPointCount)
+		_loop
+			points.add_last(coordinate(_self.get_float(),_self.get_float()))
+		_endloop
+
+		result[:route_path] << pseudo_chain.new_for_world(points,pw)
+		
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect
+
+	_return result
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.get_google_route_request(start_info,end_info)
+	## get_google_route_request(property_list START_INFO,
+	##                          property_list END_INFO) : property_list of route info
+	##
+	## performs a route request between START_INFO and END_INFO
+	## with optional INTERMEDIATE_INFO in between.  All "point"
+	## arguments must be pseudo_points that have a well-defined
+	## world with a coordinate system.
+	##
+	## START_INFO and END_INFO must be a property_list keyed on
+	## :location and :label (optional).  If no :label is provided,
+	## then will default to values defined in if_ve_acp.msg.
+	##
+	## the INTERMEDIATE_INFO is an ordered collection of
+	## property_list values keyed on :location and :label
+	## (optional). 
+
+	_dynamic !current_coordinate_system! << bing_dataset.LONGLAT_COORDINATE_SYSTEM
+	
+	_self.init_if_necessary()
+
+
+	_local result << property_list.new()
+	_local directions << rope.new()
+	result[:directions] << directions
+
+	_local a_point , a_label
+	
+	_local mh << message_handler.new(_self.class_name)
+	
+	_local ok? << _false
+	_protect
+		_locking _self
+		_self.locked_start()
+		_self.send_method_command(9)
+
+		# START POINT
+		a_point << start_info[:location].coord
+		
+		_self.put_float(a_point.y)
+		_self.put_float(a_point.x)
+
+		# END POINT
+		a_point << end_info[:location].coord
+		_self.put_float(a_point.y)
+		_self.put_float(a_point.x)
+
+		_self.get_try_result()
+
+		_local legCount << _self.get_signed_int()
+
+		_local pw << pseudo_world.new(!current_coordinate_system!)
+		_local longitude , latitude
+
+		_local total_distance << unit_value.new(0.0,:m)
+		_local total_time << time_interval.new_seconds(0.0)
+		
+		_for i _over range(1,legCount)
+		_loop
+			_local stepCount << _self.get_signed_int()
+
+			_for j _over range(1,stepCount)
+			_loop
+				_local pl << directions.add_last(property_list.new())
+				
+				longitude           << _self.get_float()
+				latitude            << _self.get_float()
+				pl[:location]       << pseudo_point.new(coordinate.new(longitude,latitude))
+				pl[:location].world << pw
+				pl[:text]           << _self.get_chars16()
+
+				# The .NET ACP has been configured to always return distance in
+				# :km. 
+				pl[:distance] << unit_value.new(_self.get_float(),:m)
+				# get total time
+				pl[:time] << time_interval.new_seconds(_self.get_unsigned_long())
+			_endloop
+
+			total_distance +<< unit_value.new(_self.get_float(),:m)
+			total_time +<< time_interval.new_seconds(_self.get_unsigned_long())
+
+		_endloop
+
+		# The .NET ACP has been configured to always return distance in
+		# :km. 
+		result[:total_distance] << total_distance
+		# get total time
+		result[:total_time] << total_time
+
+		_local pathPointCount << _self.get_signed_int()
+
+		_local points << sector.new()
+		
+		_for idx _over range(1,pathPointCount,2)
+		_loop
+			latitude << _self.get_float()
+			longitude << _self.get_float()
+			points.add_last(coordinate(longitude,latitude))
+		_endloop
+
+		result[:route_path] << pseudo_chain.new_for_world(points,pw)
+
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect
+
+	_return result
+_endmethod
+$
+
+_pragma(classify_level=advanced)
+_method if_ve_acp.get_mapquest_route_request(start_info,end_info)
+	## get_mapquest_route_request(property_list START_INFO,
+	##                          property_list END_INFO) : property_list of route info
+	##
+	## performs a route request between START_INFO and END_INFO
+	## with optional INTERMEDIATE_INFO in between.  All "point"
+	## arguments must be pseudo_points that have a well-defined
+	## world with a coordinate system.
+	##
+	## START_INFO and END_INFO must be a property_list keyed on
+	## :location and :label (optional).  If no :label is provided,
+	## then will default to values defined in if_ve_acp.msg.
+	##
+	## the INTERMEDIATE_INFO is an ordered collection of
+	## property_list values keyed on :location and :label
+	## (optional). 
+
+	_dynamic !current_coordinate_system! << bing_dataset.LONGLAT_COORDINATE_SYSTEM
+	
+	_self.init_if_necessary()
+
+
+	_local result << property_list.new()
+	_local directions << rope.new()
+	result[:directions] << directions
+
+	_local a_point , a_label
+	
+	_local mh << message_handler.new(_self.class_name)
+	
+	_local ok? << _false
+	_protect
+		_locking _self
+		_self.locked_start()
+		_self.send_method_command(11)
+
+		# START POINT
+		a_point << start_info[:location].coord
+		
+		_self.put_float(a_point.y)
+		_self.put_float(a_point.x)
+
+		# END POINT
+		a_point << end_info[:location].coord
+		_self.put_float(a_point.y)
+		_self.put_float(a_point.x)
+
+		_self.get_try_result()
+
+		_local legCount << _self.get_signed_int()
+
+		_local pw << pseudo_world.new(!current_coordinate_system!)
+		_local longitude , latitude
+
+		_local total_distance << unit_value.new(0.0,:km)
+		_local total_time << time_interval.new_seconds(0.0)
+		
+		_for i _over range(1,legCount)
+		_loop
+			_local stepCount << _self.get_signed_int()
+
+			_for j _over range(1,stepCount)
+			_loop
+				_local pl << directions.add_last(property_list.new())
+				
+				longitude           << _self.get_float()
+				latitude            << _self.get_float()
+				pl[:location]       << pseudo_point.new(coordinate.new(longitude,latitude))
+				pl[:location].world << pw
+				pl[:text]           << _self.get_chars16()
+
+				# The .NET ACP has been configured to always return distance in
+				# :km. 
+				pl[:distance] << unit_value.new(_self.get_float(),:km)
+				# get total time
+				pl[:time] << time_interval.new_seconds(_self.get_unsigned_long())
+			_endloop
+
+			total_distance +<< unit_value.new(_self.get_float(),:km)
+			total_time +<< time_interval.new_seconds(_self.get_unsigned_long())
+
+		_endloop
+
+		# The .NET ACP has been configured to always return distance in
+		# :km. 
+		result[:total_distance] << total_distance
+		# get total time
+		result[:total_time] << total_time
+
+		_local pathPointCount << _self.get_signed_int()
+
+		_local points << sector.new()
+		
+		_for idx _over range(1,pathPointCount,2)
+		_loop
+			latitude << _self.get_float()
+			longitude << _self.get_float()
+			points.add_last(coordinate(longitude,latitude))
+		_endloop
+
+		result[:route_path] << pseudo_chain.new_for_world(points,pw)
+
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect
+
+	_return result
+_endmethod
+$
+
+_pragma(classify_level=advanced)
+_method if_ve_acp.get_image_metadata_for_lat_long(lat,lon,zoom, _optional map_type)
+	## get_image_metadata_for_lat_long(LAT float,
+	##                                 LON float,
+	##                                 ZOOM integer
+	##                                 MAP_TYPE symbol) : simple_vector of strings
+	##
+	_self.init_if_necessary()
+
+	_if _self.geocoding_api_vendor_name <> "bing"
+	_then
+		condition.raise(:wmc_metadata_vendor_not_supported,
+				:vendor_name,_self.geocoding_api_vendor_name)
+	_endif
+	
+	_constant RESULT_SEPARATOR << "||"
+
+	_constant VE_MAP_TYPES << property_list.new_with(:road,0,
+							 :aerial,1,
+							 :aerialWithLabels,2,
+							 :birdseye,3,
+							 :birdseyeWithLabels ,4)
+	
+	_local ok? << _false
+	_local  success? << _false 
+	_protect
+		_locking _self
+		_self.locked_start()
+		_self.send_method_command(2)
+		_self.put_float(lat)
+		_self.put_float(lon)
+		_self.put_signed_int(zoom)
+		_self.put_signed_int(VE_MAP_TYPES[map_type.default(:road)])
+		_self.put_chars16(RESULT_SEPARATOR)
+		
+		_self.flush()
+		result << _self.get_chars16()
+		
+		success? << _self.get_boolean()
+
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect
+
+	_local result_sv << result.split_by(RESULT_SEPARATOR)
+
+	_if result_sv.size _is 1 _andif
+	    result_sv.first.canonical.index_of_seq("exception") _isnt _unset 
+	_then
+		success? << _false 
+	_endif
+	
+	_return result_sv, success?
+_endmethod 
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.get_reverse_geocode_for_lat_long(lat,lon)
+	## get_reverse_geocode_for_lat_long(float LAT,
+	##                                  float LON) : string
+	##
+	## given a LATitude and LONgitude value, return an address
+	## string for that point.
+	_local info
+	_local geocoding_api_vendor_name << _self.geocoding_api_vendor_name
+	
+	_if geocoding_api_vendor_name = "bing"
+	_then
+		info << _self.get_bing_reverse_geocode_for_lat_long(lat,lon).copy()
+		
+	_elif geocoding_api_vendor_name = "google"
+	_then
+		info << _self.get_google_reverse_geocode_for_lat_long(lat,lon).copy()
+
+		info << info.first[:formatted_address]
+
+	_elif geocoding_api_vendor_name = "mapquest"
+	_then
+		info << _self.get_mapquest_reverse_geocode_for_lat_long(lat,lon).copy()
+
+		info << info.first[:formatted_address]
+	_endif
+	
+	_return info , _true
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.get_bing_reverse_geocode_for_lat_long(lat,lon)
+	## get_bing_reverse_geocode_for_lat_long(float LAT,
+	##                                       float LON) : string
+	##
+	## given a LATitude and LONgitude value, return an address
+	## string for that point using the Bing Geocode API.
+	_self.init_if_necessary()
+
+	
+	_local ok? << _false
+	_local  success? << _false 
+	_protect
+		_locking _self
+		_self.locked_start()
+		_self.send_method_command(5)
+		_self.put_float(lat)
+		_self.put_float(lon)
+		
+		_self.flush()
+
+		_self.get_try_result()
+		
+		result << _self.get_chars16()
+		
+		success? << _self.get_boolean()
+
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect
+
+	_if result.canonical.index_of_seq("exception") _isnt _unset 
+	_then
+		success? << _false 
+	_endif
+	
+	_return result, success?
+_endmethod 
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.get_google_reverse_geocode_for_lat_long(lat,lon)
+	## get_google_reverse_geocode_for_lat_long(float LAT,
+	##                                         float LON) : rope of property_list
+	##
+	## given a LATitude and LONgitude value, returns a rope of
+	## property_lists for that point using the Google Geocode API.  
+	_self.init_if_necessary()
+
+	_local result_count
+	_local res
+	_local address_component_count , address_components , address_component_pl
+	_local type_count , types
+	
+	_local ok? << _false
+	_protect
+		_locking _self
+		_self.locked_start()
+		_self.send_method_command(8)
+		_self.put_float(lat)
+		_self.put_float(lon)
+		_self.flush()
+
+		_self.get_try_result()
+		
+		result_count << _self.get_signed_int()
+		res << rope.new()
+		
+		_for i_result_count _over 1.upto(result_count)
+		_loop
+			_local pl << property_list.new()
+			res.add_last(pl)
+
+			pl[:formatted_address]   << _self.get_chars16()
+
+			address_component_count << _self.get_signed_int()
+			pl[:address_components] << address_components << rope.new()
+			
+			_for i_address_component_count _over 1.upto(address_component_count)
+			_loop
+				address_component_pl << property_list.new()
+				address_components.add_last(address_component_pl)
+
+				address_component_pl[:long_name]  << _self.get_chars16()
+				address_component_pl[:short_name] << _self.get_chars16()
+
+				type_count << _self.get_signed_int()
+				address_component_pl[:types] << types << rope.new()
+
+				_for i_type_count _over 1.upto(type_count)
+				_loop
+					types.add_last(_self.get_chars16())
+				_endloop
+				
+			_endloop
+
+			pl[:lat]           << _self.get_float()
+			pl[:lng]           << _self.get_float()
+			pl[:location_type] << _self.get_chars16()
+			pl[:location] << pseudo_point.new(coordinate.new(pl[:lng],pl[:lat]))
+			pl[:location].world << pseudo_world.new(google_dataset.LONGLAT_COORDINATE_SYSTEM)
+		_endloop
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect
+
+
+	>> res , _true
+_endmethod 
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.get_mapquest_reverse_geocode_for_lat_long(lat,lon)
+	## get_mapquest_reverse_geocode_for_lat_long(float LAT,
+	##                                         float LON) : rope of property_list
+	##
+	## given a LATitude and LONgitude value, returns a rope of
+	## property_lists for that point using the Mapquest Reverse
+	## Geocode API.   
+	_self.init_if_necessary()
+
+	_local result_count
+	_local res
+	_local address_component_count , address_components , address_component_pl
+	_local type_count , types
+	
+	_local ok? << _false
+	_protect
+		_locking _self
+		_self.locked_start()
+		_self.send_method_command(13)
+		_self.put_float(lat)
+		_self.put_float(lon)
+		_self.flush()
+
+		_self.get_try_result()
+		
+		res << rope.new()
+		_local pl << property_list.new()
+		res.add_last(pl)
+
+		pl[:formatted_address]   << _self.get_chars16()
+		
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect
+
+
+	>> res , _true
+_endmethod 
+$
+
+_pragma(classify_level=advanced)
+_method if_ve_acp.verify_net_framework()
+	## verify_net_framework() : _unset
+	##
+	## looks at the Windows Registry to determine whether a
+	## suitable .Net Framework version is installed on this
+	## machine.  If not, raise the :ve_install_net_framework
+	## condition.  
+
+	_constant DOWNLOAD_PAGE << "http://msdn.microsoft.com/en-us/netframework/aa569263.aspx"
+	_constant TRASH << rope.new()
+	_constant REGISTRY_PATH << "Software\Microsoft\NET Framework Setup\NDP"
+
+	_constant MINIMUM_VERSION << 3.0
+	_local version << 0
+	
+	_protect	      
+		_catch @outside
+			
+			_local current_key << TRASH.add(registry_key.hkey_local_machine())
+
+			_for key_name _over REGISTRY_PATH.split_by(%\).fast_elements()
+			_loop
+				_try
+					current_key << TRASH.add(current_key.subkey(key_name))
+					
+				_when primitive_failed
+					_throw @outside
+				_endtry
+			_endloop
+
+			_for key_name _over current_key.subkeys()
+			_loop
+				version << version.max(key_name.slice_to_end(2).as_number().default(0))
+			_endloop
+		_endcatch
+	_protection
+		_for a_key _over TRASH.fast_elements()
+		_loop
+			a_key.close()
+		_endloop
+	_endprotect
+
+	_if version < MINIMUM_VERSION
+	_then
+		system.do_command(write_string("start ",DOWNLOAD_PAGE))
+		
+		condition.raise(:ve_install_net_framework,
+				# get rid of any trailing '0' characters.
+				:minimum_version,MINIMUM_VERSION.write_string.substitute_character(%0,space_char).
+					                         trim_spaces().substitute_character(space_char,%0),
+				:download_page,DOWNLOAD_PAGE)
+	_endif
+
+_endmethod
+$
+
+#	H E L P E R   M E T H O D S   F O R   A C P   C O N F I G
+#	_________________________________________________________
+
+_pragma(classify_level=restricted)
+_private _method if_ve_acp.int!config_file_name
+	
+	_return smallworld_product.get_data_file(system.pathname_down("..","bin","SW_VE_acp.exe.config"),_self.module_name)
+	
+_endmethod
+$
+_pragma(classify_level=restricted)
+if_ve_acp.define_shared_variable(:INT!CONFIG_DOCUMENT_CACHE,_unset,:private)
+$
+_pragma(classify_level=restricted)
+_private _method if_ve_acp.int!config_file
+
+	_local doc << _self.INT!CONFIG_DOCUMENT_CACHE
+
+	_self.trace(3,"Requesting int!config_file...")
+	_if doc _is _unset 
+	_then
+		doc << simple_xml.read_document_file(_self.int!config_file_name)
+		_self.INT!CONFIG_DOCUMENT_CACHE << doc
+		_self.trace(3,"... not found config document in cache. Creating cache.")
+	_else 
+		_self.trace(3,"... found config document in cache.")
+	_endif
+	
+	_return doc
+	
+_endmethod
+$
+_pragma(classify_level=restricted)
+_private _method if_ve_acp.int!update_config_file(doc)
+
+	_dynamic !text_encoding! << :utf8
+
+	# shut down the ACP so that it will be forced to re-read the
+	# configuration file the next time it is started up.
+	_self.locked_end(_false)
+
+	simple_xml.write_document_file(_self.int!config_file_name,doc)
+	
+_endmethod
+$
+_pragma(classify_level=basic)
+_method if_ve_acp.revision
+	## revision : integer
+	##
+	## returns the current revision 
+
+	_local doc << _self.int!config_file
+
+	_local elements << _self.credential_info(doc,"revision").elements
+
+	_if _not elements.empty?
+	_then
+		_return elements[1].as_number()
+	_else
+		_return _unset 
+	_endif
+_endmethod
+$
+_pragma(classify_level=basic)
+_method if_ve_acp.revision << revision 
+	## revision << integer REVISION : integer
+	##
+	## sets the revision to REVISION
+	
+	_return _self.int!set_credential_info("revision",revision)
+_endmethod
+$
+_pragma(classify_level=basic)
+_method if_ve_acp.tile_timeout_milliseconds << tile_timeout_milliseconds 
+	## tile_timeout_milliseconds << integer TILE_TIMEOUT_MILLISECONDS : integer
+	##
+	## sets the tile_timeout_milliseconds to TILE_TIMEOUT_MILLISECONDS
+	
+	_return _self.int!set_credential_info("TileTimeoutMilliseconds",tile_timeout_milliseconds)
+_endmethod
+$
+_pragma(classify_level=basic)
+_method if_ve_acp.tile_timeout_milliseconds
+	## tile_timeout_milliseconds : integer
+	##
+	## returns the current tile_timeout_milliseconds 
+
+	_local doc << _self.int!config_file
+
+	_local elements << _self.credential_info(doc,"TileTimeoutMilliseconds").elements
+
+	_if _not elements.empty?
+	_then
+		_return elements[1].as_number()
+	_else
+		_return _unset 
+	_endif
+_endmethod
+$
+_pragma(classify_level=basic)
+_method if_ve_acp.google_signing_key
+	## google_signing_key : string
+	##
+	## returns the GoogleSigningKey currently used.
+
+	_local doc << _self.int!config_file
+
+	_local elements << _self.credential_info(doc,"GoogleSigningKey").elements
+
+	_if _not elements.empty?
+	_then
+		_return elements[1]
+	_else
+		_return _unset 
+	_endif
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.google_signing_key << signing_key
+	## google_signing_key << SIGNING_KEY string : string
+	##
+	## sets the Google Premier API signing key to SIGNING_KEY
+
+	_return _self.int!set_credential_info("GoogleSigningKey",signing_key)
+	
+_endmethod
+$
+_pragma(classify_level=basic)
+_method if_ve_acp.google_client_id
+	## google_client_id : string
+	##
+	## returns the GoogleSigningKey currently used.
+
+	_local doc << _self.int!config_file
+
+	_local elements << _self.credential_info(doc,"GoogleClientID").elements
+
+	_if _not elements.empty?
+	_then
+		_return elements[1]
+	_else
+		_return _unset 
+	_endif
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.google_client_id << client_id
+	## google_client_id << CLIENT_ID string : string
+	##
+	## sets the Google Premier API signing key to CLIENT_ID
+
+	_return _self.int!set_credential_info("GoogleClientID",client_id)
+	
+_endmethod
+$
+_pragma(classify_level=basic)
+_method if_ve_acp.google_root
+	## google_root : string
+	##
+	## returns the GoogleRoot URL currently used.
+
+	_local doc << _self.int!config_file
+
+	_local elements << _self.credential_info(doc,"GoogleRoot").elements
+
+	_if _not elements.empty?
+	_then
+		_return elements[1]
+	_else
+		_return _unset 
+	_endif
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.google_root << root
+	## google_root << ROOT string : string
+	##
+	## sets the GoogleRoot to ROOT
+
+	_return _self.int!set_credential_info("GoogleRoot",root)
+	
+_endmethod
+$
+_pragma(classify_level=basic)
+_method if_ve_acp.bing_api_key
+	## bing_api_key : string
+	##
+	## your registered Bing Maps API Key
+
+	_local doc << _self.int!config_file
+
+	_local elements << _self.credential_info(doc,"bingAPIKey").elements
+
+	_if _not elements.empty?
+	_then
+		_return elements[1]
+	_else
+		_return _unset 
+	_endif
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.bing_api_key << api_key
+	## bing_api_key << api_key : string
+	##
+	## register your Bing Maps API Key
+
+	_return _self.int!set_credential_info("bingAPIKey",api_key)
+	
+_endmethod
+$
+_pragma(classify_level=basic)
+_method if_ve_acp.geocoding_api_vendor_name
+	## geocoding_api_vendor_name : string
+	##
+	## returns the GeocodingAPIVendorName currently used.
+
+	_local doc << _self.int!config_file
+
+	_local elements << _self.credential_info(doc,"GeocodingAPIVendorName").elements
+
+	_if _not elements.empty?
+	_then
+		_return elements[1]
+	_else
+		_return _unset 
+	_endif
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.geocoding_api_vendor_name << vendor_name
+	## geocoding_api_vendor_name << VENDOR_NAME string : string
+	##
+	## sets the GeocodingAPIVendorName to VENDOR_NAME
+
+	_return _self.int!set_credential_info("GeocodingAPIVendorName",vendor_name)
+	
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.set_web_proxy_info_for_current_user(webProxyAddress)
+	## set_web_proxy_info_for_current_user(string WEBPROXYADDRESS) : _unset
+	##
+	## webProxyAddress should be in the form: http://<server_name>:<port number>
+	##
+	## this will save the setting only for the current user.  It is
+	## stored in the .Net Framework's IsolatedStorageFile that is
+	## specific to only the currently-logged-in Windows User.
+
+	
+	_self.set_user_data(_self.UserWebProxyDataKey,webProxyAddress)
+
+	# shut down the ACP so that it will be forced to re-read the
+	# configuration file the next time it is started up.
+	_self.locked_end(_false)
+
+	_return _self.get_web_proxy_info()
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.set_web_proxy_info(webProxyAddress,_optional promptUserForCredentials?)
+	## set_web_proxy_info(string WEBPROXYADDRESS,
+	##                    optional boolean PROMPTUSERFORCREDENTIALS?) : _unset
+	##
+	## webProxyAddress should be in the form: http://<server_name>:<port number>
+	## if promptUserForCredentials? (default=_false) is _true, then
+	## provide a Windows Panel that prompts for username/password
+	## for the proxy server.  If promptUserForCredentials? is
+	## _false or if it is not specified, then the program will
+	## assume that the user's current OS credentials will be used
+	## for the web proxy server.
+	##
+
+
+	_self.int!set_credential_info("webProxyAddress",webProxyAddress.default(""))
+
+	_self.int!set_credential_info("webProxyPromptUserForCredentials",promptUserForCredentials?.default(_false).write_string)
+
+	_return _self.get_web_proxy_info()
+_endmethod
+$
+_pragma(classify_level=restricted)
+_method if_ve_acp.get_web_proxy_info()
+	## get_web_proxy_info : string , boolean
+	##
+	## returns application_webProxyAddress, user_webProxyAddress , promptUserForCredentials?
+	## configured for this application.
+
+	_dynamic !if_in_packaging_process?!
+	
+	_local doc << _self.int!config_file
+
+	_local results << rope.new()
+
+	_for i_setting_name _over {"webProxyAddress"}.fast_elements()
+	_loop
+		_local elements << _self.credential_info(doc,i_setting_name).elements
+		
+		_if _not elements.empty?
+		_then
+			results.add_last(elements[1])
+		_else
+			results.add_last("")
+		_endif
+	_endloop
+
+	# now get the user-specific proxy information as well.
+	_if _not !if_in_packaging_process?!
+	_then
+		results.add_last(_self.get_user_data(_self.UserWebProxyDataKey))
+	_endif
+	
+	results.add_last(_self.credential_info(doc,"webProxyPromptUserForCredentials").elements[1].evaluate())
+
+	_return (_scatter results)
+_endmethod
+$
+_pragma(classify_level=restricted)
+_private _method if_ve_acp.int!set_credential_info(credential_name,credential_value)
+	## 
+	## 
+
+	credential_value << credential_value.default("")
+
+	_local doc << _self.int!config_file
+
+	_self.credential_info(doc,credential_name).elements[1] << credential_value
+
+	_self.int!update_config_file(doc)
+
+	_local mh << message_handler.new(_self.class_name)
+
+	write(mh.human_string(:config_change_made,_unset,
+			      credential_name,
+			      _self.int!config_file_name))
+			      
+	_return _self.credential_info(doc,credential_name).elements[1]
+	
+_endmethod
+$
+_pragma(classify_level=restricted)
+_private _method if_ve_acp.credential_info(xml_doc,credential_name)
+	
+	_local credential_info
+	
+	_for a_setting _over xml_doc.top_element.element_matching_name("applicationSettings").element_matching_name("iFactor.Properties.Settings").elements_matching_name("setting")
+	_loop
+		_if a_setting.attributes["name"] = credential_name
+		_then
+			credential_info << a_setting.elements[1]
+		_endif
+	_endloop 
+
+	_return credential_info
+	
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.clear_sw_auth_info()
+	## clear_sw_auth_info() : _unset
+	##
+	## Clears the SW Authorisation Information.
+
+	_self.int!set_credential_info("SWAuthInfo","")
+	
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.set_sw_auth_info(auth_type,eligibility_list)
+	## set_sw_auth_info(symbol AUTH_TYPE,
+	##                  list ELIGIBILITY_LIST) : _unset
+	##
+	## Sets the SW Authorisation Information for users, groups or
+	## rights that are eligible to use the Bing Maps Connector for
+	## Smallworld.
+	##
+	##  AUTH_TYPE:one of {:group,:right,:user,:os_username}; and
+	##  ELIGIBILITY_LIST: list of eligible values for this AUTH_TYPE
+
+	auth_type << auth_type.as_symbol()
+
+	_if _not {:group,:right,:user,:os_username}.includes?(auth_type)
+	_then
+		condition.raise(:ve_invalid_sw_auth_type,
+				:type,auth_type.write_string,
+				:valid_types,"{:group,:right,:user,:os_username}")
+	_endif
+	
+	_local pl << equality_property_list.new_with(auth_type.as_symbol(),sorted_set.new_from(eligibility_list).as_simple_vector())
+
+	_local str << internal_text_output_stream.new()
+
+	serial_xml_thing.write_thing_to(pl,str)
+	
+	_self.int!set_credential_info("SWAuthInfo",str.string)
+
+	
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.get_sw_auth_info()
+	## get_sw_auth_info() : symbol,sorted_set
+	##
+	## returns two elements:
+	##  AUTH_TYPE:one of {:group,:right,:user,:os_username}; and
+	##  ELIGIBILITY_LIST: sorted_set of eligible values for this AUTH_TYPE
+
+	_local doc << _self.int!config_file
+
+	_local elements << _self.credential_info(doc,"SWAuthInfo").elements
+
+	_if elements.empty?
+	_then
+		_return _unset 
+	_endif
+
+	# at CST 4.0, it is possible that a very long XML text node
+	# gets split into multiple element children.  So we need to
+	# make sure to concatenate all the elements together.  At CST
+	# 4.1 this doesn't seem to be a problem.
+	_local element_string << write_string(_scatter elements).trim_spaces()
+
+	_if element_string.empty?
+	_then
+		_return _unset 
+	_endif
+	
+	_local str << internal_text_input_stream.new(element_string)
+
+	_local pl << serial_xml_thing.read_thing_from(str)
+
+	_return pl.a_key(),pl.an_element()
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.report_sw_auth_info()
+	## report_sw_auth_info() : string
+	##
+	## reports the auth_type and eligibility_list currently
+	## configured for
+
+	_local (auth_type,a_list) << _self.get_sw_auth_info()
+
+	_local mh << message_handler.new(_self.class_name)
+
+	_if auth_type _is _unset 
+	_then
+		write(mh.human_string(:no_sw_auth_type))
+		_return 
+	_endif
+
+	str << internal_text_output_stream.new()
+
+	str.write_list_with_separator(a_list,write_string(%",%,,%"))
+	
+	_local part1 << write_string("if_ve_acp.set_sw_auth_info(:",auth_type,",{",%",str.string,%","})")
+	_local string << mh.human_string(:sw_auth_modify_and_compile,_unset,part1)
+	
+	_dynamic !show_string_length! << string.size
+
+	write(string)
+_endmethod
+$
+_pragma(classify_level=restricted)
+_method if_ve_acp.has_credential_info_been_loaded?
+	## has_credential_info_been_loaded? : boolean
+	##
+	## returns _true if all relevant credential information has
+	## been loaded.  This does not mean that the credential
+	## information is valid but simply that something has been
+	## loaded in after the install.
+
+	_return _not _self.geocoding_api_vendor_name.default("").empty?
+	
+_endmethod
+$
+_pragma(classify_level=restricted)
+if_ve_acp.define_shared_constant(:INT!ENVIRONMENT_INFO,
+				 property_list.new_with(
+					 :staging,equality_property_list.new_with("GeocodeService.IGeocodeService",
+										  "http://staging.dev.virtualearth.net/webservices/v1/geocodeservice/GeocodeService.svc",
+										  "ImageryService.IImageryService",
+										  "http://staging.dev.virtualearth.net/webservices/v1/imageryservice/imageryservice.svc",
+										  "SW_VE_acp_TokenWebReference_CommonService",
+										  "http://staging.common.virtualearth.net/find-30/common.asmx"),
+					 
+					 :production,equality_property_list.new_with("GeocodeService.IGeocodeService",
+										     "http://dev.virtualearth.net/webservices/v1/geocodeservice/GeocodeService.svc",
+										     "ImageryService.IImageryService",
+										     "http://dev.virtualearth.net/webservices/v1/imageryservice/imageryservice.svc",
+										     "SW_VE_acp_TokenWebReference_CommonService",
+										     "http://common.virtualearth.net/find-30/common.asmx")
+					 ),
+				 _true)
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.set_environment_type(type)
+	## set_environment_type(TYPE symbol) : _unset
+	##
+	## TYPE is one of {:staging,:production}.  Use this method to
+	## change the ACP configuration file to either reference the
+	## Virtual Earth Staging or Production environments.  You only
+	## need to call this method once per change and it will
+	## persist between sessions for the executable associated with
+	## self's module.
+
+	_local doc << _self.int!config_file
+
+	_constant ENVIRONMENT_INFO << _self.INT!ENVIRONMENT_INFO[type]
+	
+	_for endpoint _over doc.top_element.element_matching_name("system.serviceModel").element_matching_name("client").elements_matching_name("endpoint")
+	_loop
+		_for contract,address _over ENVIRONMENT_INFO.fast_keys_and_elements()
+		_loop
+			_if endpoint.attributes["contract"] = contract 
+			_then
+				endpoint.attributes["address"] << address
+			_endif
+		_endloop
+	_endloop
+
+	_local credential_name << "SW_VE_acp_TokenWebReference_CommonService"
+	
+	_self.credential_info(doc,credential_name).elements[1] << ENVIRONMENT_INFO[credential_name]
+
+	_self.int!update_config_file(doc)
+
+	_local msg << message_handler.new(_self.class_name).human_string(:environment_changed)
+
+	_dynamic !show_string_length! << msg.size
+
+	condition.raise(:information,:string,msg)
+
+	system.do_command("start http://www.microsoft.com/virtualearth/assets/docs/mappoint-terms.aspx")
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.validate_sw_auth()
+	## validate_sw_auth() : _unset
+	##
+	## if SWAuthInfo is set and the current user does not meet the
+	## authorisation criterion, raise condition
+	## :ve_current_user_not_sw_auth_validated 
+
+	_local (authType,eligibilityList) << _self.get_sw_auth_info()
+
+	_if authType _is _unset 
+	_then
+		_return _true 
+	_endif
+	
+	eligibilityList << eligibilityList.map(_proc(a_name)
+						       >> a_name.canonical
+					       _endproc)
+
+	eligibilityList << equality_set.new_from(eligibilityList)
+
+	_local authorised? << _false
+	
+	_if authType _is :os_username
+	_then
+		authorised? << eligibilityList.includes?(system.user_name.canonical)
+
+	_elif authType _is :user
+	_then
+		authorised? << eligibilityList.includes?(gis_program_manager.authorisation_view.current_user.name.canonical)
+
+	_elif authType _is :group
+	_then
+		_local groups << gis_program_manager.authorisation_view.current_user.all_groups
+		groups << groups.map(_proc(a_group)
+					     >> a_group.name.canonical
+				     _endproc)
+
+		authorised? << _not groups.intersection(eligibilityList).empty?
+		
+	_elif authType _is :right
+	_then
+		_local a_user << gis_program_manager.authorisation_view.current_user
+		
+		_for a_right_name _over eligibilityList.fast_elements()
+		_loop
+			_if a_user.access_to?(a_right_name)
+			_then
+				authorised? << _true
+				_leave 
+			_endif
+		_endloop
+	_endif
+
+	_if _not authorised?
+	_then
+		condition.raise(:ve_current_user_not_sw_auth_validated)
+	_endif
+_endmethod
+$
+
+_pragma(classify_level=advanced)
+_method if_ve_acp.get_kml(kml_filename)
+	## 
+	## 
+	_self.init_if_necessary()
+	
+	_local ok? << _false
+	_protect
+		_locking _self
+		_self.locked_start()
+		_self.send_method_command(1000)
+
+
+		_self.put_chars16(kml_filename)
+
+		_local count << _self.get_signed_int()
+
+		_for i _over range(1,count)
+		_loop
+			_local geom
+			_local name << _self.get_chars16()
+			_local description << _self.get_chars16()
+			_local geom_type <<  _self.get_chars16()
+			show(:name,name)
+			show(:description,description)
+
+			_if geom_type = "Point"
+			_then
+				geom << _self.acp_get_kml_point_geometry()
+				
+			_elif geom_type = "LineString"
+			_then
+				geom << _self.acp_get_kml_linestring_geometry()
+				
+			_endif
+
+			show(:geom,geom_type,geom)
+			
+		_endloop
+
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect
+	
+_endmethod
+$
+_pragma(classify_level=restricted)
+_private _method if_ve_acp.acp_get_kml_point_geometry()
+	
+	_local longitude << _self.get_float()
+	_local latitude << _self.get_float()
+	geom  << pseudo_point.new(coordinate.new(longitude,latitude))
+	geom.world << pseudo_world.new(wmc_dataset.LONGLAT_COORDINATE_SYSTEM)
+
+	_return geom
+_endmethod
+$
+_pragma(classify_level=restricted)
+_private _method if_ve_acp.acp_get_kml_linestring_geometry()
+
+	_local count << _self.get_signed_int()
+	
+	_local points << sector.new()
+	
+	_for idx _over range(1,count)
+	_loop
+		points.add_last(coordinate(_self.get_float(),_self.get_float()))
+	_endloop
+	
+	geom << pseudo_chain.new_for_world(points,pseudo_world.new(wmc_dataset.LONGLAT_COORDINATE_SYSTEM))
+
+	_return geom
+_endmethod
+$
+_pragma(classify_level=restricted)
+_method if_ve_acp.int!show_in_web_browser(zoom_level,centre_lon_lat,map_type, _optional point_title_string,vendor)
+	## int!show_in_web_browser(integer ZOOM_LEVEL,
+	##                         coordinate CENTRE_LON_LAT
+	##                         symbol MAP_TYPE,
+	##                         optional string POINT_TITLE_STRING,
+	##                                  symbol VENDOR) : _unset
+	##
+	## calls "start <map URL>".  This will launch the default
+	## browser and direct it to maps.live.com with suitable lat/lon
+	## and zoom scale information set.
+	##
+	## vendor is typically derived from the ve_tile.vendor shared
+	## constant.  If VENDOR is provided as an argument, that is
+	## used instead.
+
+	_dynamic !print_float_precision! << 12
+
+	_local style << property_list.new_with(:road,:r,
+					       :aerial,:a,
+					       :aerialWithLabels,:h,
+					       :birdseye,:b)[map_type].default(:r)
+
+	_if point_title_string _is _unset 
+	_then
+		point_title_string << message_handler.new(_self.class_name).human_string(:default_point_title_string)
+	_endif
+
+	point_title_string << mclib:http_request.url_encode(point_title_string)
+	
+	_local url
+
+	_if vendor _is _unset 
+	_then
+		_if ve_tile.method(:vendor) _is _unset 
+		_then
+			vendor << _unset 
+		_else
+			vendor << ve_tile.vendor
+		_endif
+	_endif
+
+	_if map_type _is :osm
+	_then
+		url << write_string("http:",%","\\www.openstreetmap.org/?",
+				    "lat=",centre_lon_lat.y,"&",
+				    "lon=",centre_lon_lat.x,"&",
+				    "zoom=",zoom_level.min(21),
+				    %")
+
+	_elif map_type _is :mapzen
+	_then
+		url << write_string("http:",%","\\mapzen.cloudmade.com/map?",
+				    "lat=",centre_lon_lat.y,"&",
+				    "lng=",centre_lon_lat.x,"&",
+				    "zoom=",zoom_level.min(21),
+				    %")
+	_elif _self.geocoding_api_vendor_name = "google"
+	_then
+		_if style _is :b
+		_then
+			# if we are in Google mode and the user chooses "Bird's Eye
+			# View", then actually bring up the Google Street View for that
+			# area.
+			url << write_string("http:",%","\\maps.google.com/maps?",
+					    "ll=",centre_lon_lat.y,",",centre_lon_lat.x,"&",
+					    "t=h&",
+					    "z=",zoom_level.min(19),"&",
+					    "layer=c&",
+					    "cbll=",centre_lon_lat.y,",",centre_lon_lat.x,"&",
+					    "cbp=0,120,,0,0",
+					    %")
+		_else
+			style << "h"
+			url << write_string("http:",%","\\maps.google.com/maps?f=q&geocode=&",
+					    "ll=",centre_lon_lat.y,",",centre_lon_lat.x,"&",
+					    "ie=UTF8&",
+					    "t=",style,"&",
+					    "z=",zoom_level.min(19),
+					    %")
+		_endif
+		
+	_else
+		url << write_string("https:",%","\\www.bing.com/mapspreview?&cp=",
+				    centre_lon_lat.y,"~",centre_lon_lat.x,
+				    "&lvl=",zoom_level,
+				    "&style=",style,
+				    %")
+	_endif
+
+	
+	system.do_command(write_string("start ",url))
+_endmethod
+$
+_pragma(classify_level=restricted)
+_private _method if_ve_acp.use_bing_maps_silverlight?
+	## use_bing_maps_silverlight? : boolean
+	##
+	## scans for a ve_swaf_plugin that has the
+	## :use_bing_maps_silverlight? property set and return that
+	## value. 
+
+	_for i_app _over smallworld_product.applications.fast_elements()
+	_loop @outside
+		_for i_plugin _over i_app.plugins()
+		_loop
+			_if i_plugin.get_property_signature(:use_bing_maps_silverlight?) _isnt _unset 
+			_then
+				_return i_plugin.use_bing_maps_silverlight?
+			_endif
+		_endloop
+		
+	_endloop
+	
+	_return _false 
+_endmethod
+$
+_pragma(classify_level=restricted)
+_private _method if_ve_acp.get_user_data(dataKey)
+	## get_user_data(string DATAKEY) : string
+	##
+	## return the user-specific data stored in a .Net
+	## IsolatedStorageFile called DATAKEY.
+
+	_self.init_if_necessary()
+
+	_local data_value << _unset
+	
+	_local ok? << _false
+	_protect
+		_locking _self
+		_self.locked_start()
+		_self.send_method_command(2001)
+		_self.put_chars16(dataKey)
+		data_value << _self.get_chars16()
+
+		_if data_value = _self.EMPTY_STRING
+		_then
+			data_value << ""
+		_endif
+		
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect
+
+	>> data_value
+	
+	
+_endmethod
+$
+_pragma(classify_level=restricted)
+_private _method if_ve_acp.set_user_data(dataKey,dataValue)
+	## set_user_data(string DATAKEY) : string
+	##
+	## sets user-specific dataValue stored in a .Net
+	## IsolatedStorageFile called dataKey.
+
+	_self.init_if_necessary()
+
+	dataValue << dataValue.default("")
+
+	_if dataValue = ""
+	_then
+		dataValue << _self.EMPTY_STRING
+	_endif
+	
+	_local ok? << _false
+	_protect
+		_locking _self
+		_self.locked_start()
+		_self.send_method_command(2000)
+		_self.put_chars16(dataKey)
+		_self.put_chars16(dataValue)
+		_self.flush()
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect
+
+_endmethod
+$
+
+_pragma(classify_level=restricted)
+_iter _method drawing_surface_mixin.int!quadkeys(a_wmc_collection)
+	## int!quadkeys(uds_collection A_WMC_COLLECTION) : strings
+	##
+	## iteratively returns the quadkeys that overlap the world
+	## bounds of self.  This method requires that
+	## !current_coordinate_system! is set AND corresponds to the
+	## world coordinate system represented by self.transform
+
+	_if (a_wmc_collection.source_view.is_kind_of?(google_dataset)) _andif
+	    a_wmc_collection.name _isnt :streetview_tile
+	_then
+		_for i _over _self.int!static_map_quadkey(a_wmc_collection)
+		_loop
+			_loopbody (i)
+		_endloop
+	_else
+		_for i _over _self.int!tile_quadkeys(a_wmc_collection)
+		_loop
+			_loopbody (i)
+		_endloop		
+	_endif
+_endmethod
+$
+_pragma(classify_level=restricted)
+_method drawing_surface_mixin.window_lat_long_info()
+
+	_dynamic !current_coordinate_system!
+	_dynamic sw:!ve_connector_current_map_view!
+	
+	_local current_map_view << sw:!ve_connector_current_map_view!
+	_local using_viewport_layout? << current_map_view.is_kind_of?(viewport_layout)
+
+	_local world_to_ll_xform << transform.new_converting_cs_to_cs(!current_coordinate_system!,
+								      wmc_dataset.LONGLAT_COORDINATE_SYSTEM)
+	_local pixel_to_world_xform << _self.transform.inverse()
+	_local pixel_to_ll_xform << pixel_to_world_xform.multiply(world_to_ll_xform)
+	
+	# we need the canvas centre in order to figure out our zoom_level.
+	_local pbounds          << _self.bounds
+	
+	_local window_center_ll
+	_local world_bounds_ll
+	
+	_if using_viewport_layout?
+	_then
+		world_bounds_ll << current_map_view.rotated_projection_bounds.bounds.transform(world_to_ll_xform)
+		window_center_ll << world_bounds_ll.centre
+	_else 
+		_local window_center_px << coordinate.new_from(pbounds.centre)
+		window_center_ll << pixel_to_ll_xform.convert(window_center_px)
+		world_bounds_ll << bounding_box.new_from(pbounds).transformed(pixel_to_ll_xform).bounds
+	_endif
+
+	_return window_center_ll , world_bounds_ll , pixel_to_ll_xform , pbounds
+_endmethod
+$
+
+
+_pragma(classify_level=restricted)
+_private _iter _method drawing_surface_mixin.int!tile_quadkeys(a_wmc_collection)
+	## int!tile_quadkeys(uds_collection A_WMC_COLLECTION) : strings
+	##
+	## iteratively returns the quadkeys that overlap the world
+	## bounds of self.  This method requires that
+	## !current_coordinate_system! is set AND corresponds to the
+	## world coordinate system represented by self.transform
+
+	_dynamic sw:!current_rendering_context!
+	_dynamic sw:!ve_connector_current_map_view!
+	
+	_local current_map_view << sw:!ve_connector_current_map_view!
+	_local using_viewport_layout? << current_map_view.is_kind_of?(viewport_layout)
+
+	_local (window_center_ll,world_bounds_ll,pixel_to_ll_xform,pbounds) << _self.window_lat_long_info()
+
+	_local (lon,lat)        << (window_center_ll.x,window_center_ll.y)
+	_local view_scale       << sw:!current_rendering_context!.view_scale
+
+	_if view_scale _is _unset 
+	_then
+		_return 
+	_endif
+
+	_local minTileColumn , minTileRow
+	_local maxTileColumn , maxTileRow 
+
+	_local a_view << a_wmc_collection.source_view
+	_local rex << a_wmc_collection.descriptor.record_exemplar
+	
+	_local zoom_level << rex.get_level_of_detail(lat,view_scale,current_map_view.wmc_dpi)
+
+	zoom_level << zoom_level.min(a_view.max_zoom_level(a_wmc_collection)).max(a_view.min_zoom_level(a_wmc_collection))
+
+	_local max_tile_count << rex.MAX_TILE_COUNT
+
+	_loop
+		
+		# now we need to figure out the TopLeft and BottomRight window
+		# VEPixel coordinates for the current zoom_level.  This will
+		# help us: 1) find the rows/columns of tiles to request; and 2)
+		# figure out how to position those tiles on the current
+		# window.
+		_local windowTopLeftLL , windowBottomLeftLL , windowBottomRightLL , windowTopRightLL
+
+		_if using_viewport_layout?
+		_then
+			windowTopLeftLL     << world_bounds_ll.top_left
+			windowBottomLeftLL  << world_bounds_ll.bottom_left
+			windowBottomRightLL << world_bounds_ll.bottom_right
+			windowTopRightLL    << world_bounds_ll.top_right
+		_else 
+			windowTopLeftLL     << pixel_to_ll_xform.convert(coordinate(0,0))
+			windowBottomLeftLL  << pixel_to_ll_xform.convert(coordinate(0,pbounds.height))
+			windowBottomRightLL << pixel_to_ll_xform.convert(coordinate(pbounds.width,pbounds.height))
+			windowTopRightLL    << pixel_to_ll_xform.convert(coordinate(pbounds.width,0))
+		_endif
+
+		_local xValues << {0,0,0,0}
+		_local yValues << {0,0,0,0}
+
+		(xValues[1],yValues[1]) << rex.longlat_to_pixel_xy(windowTopLeftLL.x,windowTopLeftLL.y,zoom_level)
+		(xValues[2],yValues[2]) << rex.longlat_to_pixel_xy(windowBottomLeftLL.x,windowBottomLeftLL.y,zoom_level)
+		(xValues[3],yValues[3]) << rex.longlat_to_pixel_xy(windowTopRightLL.x,windowTopRightLL.y,zoom_level)
+		(xValues[4],yValues[4]) << rex.longlat_to_pixel_xy(windowBottomRightLL.x,windowBottomRightLL.y,zoom_level)
+
+		# these VEPixel coordinates are the absolute pixels in the
+		# Virtual Earth space for this zoom_level.
+		_local windowVEPixelMinX << xValues[1].min(xValues[2]).min(xValues[3]).min(xValues[4])
+		_local windowVEPixelMaxX << xValues[1].max(xValues[2]).max(xValues[3]).max(xValues[4])
+		_local windowVEPixelMinY << yValues[1].min(yValues[2]).min(yValues[3]).min(yValues[4])
+		_local windowVEPixelMaxY << yValues[1].max(yValues[2]).max(yValues[3]).max(yValues[4])
+		
+
+		# we can also figure out tile columns, rows so that we can
+		# write iterators that easily calculate our required quadkeys. 
+
+		(TileColumn1,TileRow1) << rex.pixel_xy_to_tile_xy(windowVEPixelMinX,windowVEPixelMinY,zoom_level)
+		(TileColumn2,TileRow2) << rex.pixel_xy_to_tile_xy(windowVEPixelMaxX,windowVEPixelMaxY,zoom_level)
+
+		minTileColumn << TileColumn1.min(TileColumn2)
+		maxTileColumn << TileColumn1.max(TileColumn2)
+		minTileRow << TileRow1.min(TileRow2)
+		maxTileRow << TileRow1.max(TileRow2)
+
+		_local tile_count << (maxTileRow - minTileRow + 1) * (maxTileColumn - minTileColumn + 1)
+
+		_if ( tile_count <= max_tile_count) _orif
+		    zoom_level _is 1
+		_then
+			# if we have a nice amount of tiles (ie., not too many), then
+			# leave... 
+			_leave
+		_endif
+
+		if_ve_acp.trace(1,a_wmc_collection,"Zoom level ",zoom_level," produces ",tile_count," tiles.  This exceeds MAX_TILE_COUNT ",max_tile_count,".  Trying again...")
+		
+		# ... otherwise, decrement the zoom level and try again.
+		zoom_level -<< 1
+	_endloop
+
+	_for iRow _over range(minTileRow,maxTileRow,1)
+	_loop
+		_for iColumn _over range(minTileColumn,maxTileColumn)
+		_loop
+			_loopbody (rex.tile_xy_to_quadkey(iColumn,iRow,zoom_level))
+		_endloop
+	_endloop
+	
+	
+_endmethod
+$
+_pragma(classify_level=restricted)
+_private _iter _method drawing_surface_mixin.int!birdseye_quadkeys(a_wmc_collection)
+	## int!birdseye_quadkeys(uds_collection A_WMC_COLLECTION) : strings
+	##
+	## iteratively returns the quadkeys that overlap the world
+	## bounds of self.  This method requires that
+	## !current_coordinate_system! is set AND corresponds to the
+	## world coordinate system represented by self.transform
+	_dynamic sw:!current_rendering_context!
+	_dynamic sw:!ve_connector_current_map_view!
+	
+	_local current_map_view << sw:!ve_connector_current_map_view!
+	_local using_viewport_layout? << current_map_view.is_kind_of?(viewport_layout)
+
+	_local (window_center_ll,world_bounds_ll,pixel_to_ll_xform,pbounds) << _self.window_lat_long_info()
+	
+	_local (lon,lat)        << (window_center_ll.x,window_center_ll.y)
+	_local view_scale       << sw:!current_rendering_context!.view_scale
+
+	_if view_scale _is _unset 
+	_then
+		_return 
+	_endif
+
+	_local a_view << a_wmc_collection.source_view
+	_local rex << a_wmc_collection.descriptor.record_exemplar
+	
+	_local zoom_level << rex.get_level_of_detail(lat,view_scale,current_map_view.wmc_dpi)
+
+	# Bird's Eye view is only available at levels 19 and 20.
+	zoom_level << zoom_level.min(20).max(19)
+
+	# now we need to figure out the TopLeft and BottomRight window
+	# VEPixel coordinates for the current zoom_level.  This will
+	# help us: 1) find the rows/columns of tiles to request; and 2)
+	# figure out how to position those tiles on the current
+	# window.
+	_local windowTopLeftLL , windowBottomLeftLL , windowBottomRightLL , windowTopRightLL
+
+	_if using_viewport_layout?
+	_then
+		windowTopLeftLL     << world_bounds_ll.top_left
+		windowBottomLeftLL  << world_bounds_ll.bottom_left
+		windowBottomRightLL << world_bounds_ll.bottom_right
+		windowTopRightLL    << world_bounds_ll.top_right
+	_else 
+		windowTopLeftLL     << pixel_to_ll_xform.convert(coordinate(0,0))
+		windowBottomLeftLL  << pixel_to_ll_xform.convert(coordinate(0,pbounds.height))
+		windowBottomRightLL << pixel_to_ll_xform.convert(coordinate(pbounds.width,pbounds.height))
+		windowTopRightLL    << pixel_to_ll_xform.convert(coordinate(pbounds.width,0))
+	_endif
+
+	_if  windowTopRightLL.x < windowTopLeftLL.x
+	_then
+		windowTopRightLL << coordinate.new(windowTopRightLL.x + 180,windowTopRightLL.y)
+	_endif
+
+	_if  windowBottomRightLL.x < windowBottomLeftLL.x
+	_then
+		windowBottomRightLL << coordinate.new(windowBottomRightLL.x + 180,windowBottomRightLL.y)
+	_endif
+
+	# LL_BB is the bounding box we will use to determine which
+	# Birds Eye tiles are visible in the current map view.
+	_local window_ll_bb << bounding_box.new_with_corners(windowBottomLeftLL,windowTopRightLL)
+
+	# get the georeferencing parameters.
+	# birdseye georeference calculations courtesy of
+	# http://rbrundritt.wordpress.com/2009/01/08/birds-eye-imagery-extraction-via-the-virtual-earth-web-services-part-1/ 
+
+	_local url << write_string("http://dev.virtualearth.net/services/v1/ImageryMetadataService/ImageryMetadataService.asmx/GetBirdsEyeSceneByLocation?",
+				   "latitude=",lat,
+				   "&longitude=",lon,
+				   "&level=",zoom_level,
+				   "&spinDirection=%22NoSpin%22&orientation=%22North%22&culture=%22en-us%22&format=json",
+				   "&rid=",system.incarnation.as_milliseconds)
+
+	# parse the resulting JSON string for the Q* geocoding
+	# parameters. 
+	_local json_string << if_ve_acp.get_request(url)
+
+	_local p << equality_property_list.new_with("QA",_unset,
+						    "QB",_unset,
+						    "QC",_unset,
+						    "QD",_unset,
+						    "QE",_unset,
+						    "QF",_unset,
+						    "QG",_unset,
+						    "QH",_unset,
+						    "QI",_unset)
+
+	_local result
+	_local regexp << ole_client.createobject("vbscript.regexp")
+	_protect
+		_for i_parameter_name _over p.fast_keys()
+		_loop
+			regexp.pattern << write_string('\"',i_parameter_name,'\":-?\d+\.?\d*')
+			result << regexp.execute(json_string)
+			p[i_parameter_name] << result.item(0).value.split_by(%:).last.as_number()
+			result.release_object()
+		_endloop
+	_protection
+		regexp.release_object()
+	_endprotect
+
+	_local q_matrix << matrix_2.new(3)
+	q_matrix[1,1] << p["QA"]
+	q_matrix[2,1] << p["QB"]
+	q_matrix[3,1] << p["QC"]
+	q_matrix[1,2] << p["QD"]
+	q_matrix[2,2] << p["QE"]
+	q_matrix[3,2] << p["QF"]
+	q_matrix[1,3] << p["QG"]
+	q_matrix[2,3] << p["QH"]
+	q_matrix[3,3] << p["QI"]
+
+	_local zoom_factor << 2 ** (zoom_level - 20)
+	
+	_local pixel_to_ll << _proc@pixel_to_ll(a_coord)
+				      # pixel_to_ll(pixel_coordinate A_COORD) : coordinate
+				      #
+				      # converts A_COORD into a suitable Lat/Long coordinate based on
+				      # the georeferencing parameters in the Q_MATRIX
+				      _import zoom_factor , q_matrix
+
+				      _local pixel_matrix << matrix_2.new(1,3)
+				      pixel_matrix[1,1] << (a_coord.x / zoom_factor).as_float
+				      pixel_matrix[1,2] << (a_coord.y / zoom_factor).as_float
+				      pixel_matrix[1,3] << 1.0
+
+				      _local m_matrix << pixel_matrix.mult_by(q_matrix)
+
+				      _return coordinate((m_matrix[1,1] / m_matrix[1,3]).as_float,
+							 (m_matrix[1,2] / m_matrix[1,3]).as_float)
+			      _endproc
+	
+	# now that we have the georeferencing parameters, we can loop
+	# over each tileID in the current Birds Eye scene and determine
+	# what its LL bounding box is. 
+	_local pl << if_ve_acp.birdseye_metadata(lon,lat,zoom_level,a_wmc_collection.name.write_string)
+
+	_local tile_id
+	_local tiles_x     << pl[:tiles_x]
+	_local tile_width  << pl[:tile_width]
+	_local tile_height << pl[:tile_height]
+	_local tileTopLeftPixelCoord
+	_local tileBottomRightPixelCoord
+	_local quadkey
+	_dynamic !print_float_precision! << 12
+	
+	_for y _over range(0,pl[:tiles_y]-1,1)
+	_loop
+		_for x _over range(0,pl[:tiles_x]-1,1)
+		_loop
+			tile_id << y * tiles_x + x
+
+			tileTopLeftPixelCoord     << pixel_coordinate(x*tile_width,y*tile_height)
+			tileBottomRightPixelCoord << pixel_coordinate(x*tile_width + tile_width,
+								      y*tile_height + tile_height)
+
+			_local tile_bb_ll << bounding_box.new_with_corners(pixel_to_ll(tileTopLeftPixelCoord),pixel_to_ll(tileBottomRightPixelCoord))
+show(tile_id)
+			_if tile_bb_ll.interacts_with?(window_ll_bb)
+			_then
+				quadkey << write_string(pl[:uri].substitute_string("{tileId}",tile_id.write_string),"*",
+					   "&xmin=",tile_bb_ll.xmin,
+					   "&ymin=",tile_bb_ll.ymin,
+					   "&xmax=",tile_bb_ll.xmax,
+					   "&ymax=",tile_bb_ll.ymax)
+
+				_loopbody(quadkey)
+			_endif
+#			show("tileX",x,"tileY",y,"tileID",tile_id,
+#			     "tileTopLeftPixel",tileTopLeftPixelCoord,pixel_to_ll(tileTopLeftPixelCoord),
+#			     "tileBottomRightPixel",tileBottomRightPixelCoord,pixel_to_ll(tileBottomRightPixelCoord))
+		_endloop		
+	_endloop
+_endmethod
+$
+_pragma(classify_level=restricted)
+_iter _method drawing_surface_mixin.int!static_map_quadkey(a_wmc_collection)
+	## int!static_map_quadkey(uds_collection A_WMC_COLLECTION) : strings
+	##
+	## returns a single "quadkey" that overlaps the world
+	## bounds of self.  This method requires that
+	## !current_coordinate_system! is set AND corresponds to the
+	## world coordinate system represented by self.transform
+	##
+	## strictly speaking, this is not a tile quadkey.  Rather, it
+	## is an encoded string that the ACP can use to retrieve a
+	## vendor's Static Map.  This is different than the tiled
+	## quadkey approach, but still fits in reasonably well to the
+	## WMC framework.
+
+	_dynamic !current_coordinate_system!
+	_dynamic sw:!current_rendering_context!
+	_dynamic sw:!ve_connector_current_map_view!
+	
+	_local current_map_view << sw:!ve_connector_current_map_view!
+	_local using_viewport_layout? << current_map_view.is_kind_of?(viewport_layout)
+
+	_local world_to_ll_xform << transform.new_converting_cs_to_cs(!current_coordinate_system!,
+								      wmc_dataset.LONGLAT_COORDINATE_SYSTEM)
+	_local pixel_to_world_xform << _self.transform.inverse()
+	_local pixel_to_ll_xform << pixel_to_world_xform.multiply(world_to_ll_xform)
+	
+	# we need the canvas centre in order to figure out our zoom_level.
+	_local pbounds          << _self.bounds
+	
+	_local window_center_ll
+	_local world_bounds_ll
+	
+	_if using_viewport_layout?
+	_then
+		world_bounds_ll << current_map_view.rotated_projection_bounds.bounds.transform(world_to_ll_xform)
+		window_center_ll << world_bounds_ll.centre
+	_else 
+		_local window_center_px << coordinate.new_from(pbounds.centre)
+		window_center_ll << pixel_to_ll_xform.convert(window_center_px)
+	_endif
+	
+	_local (lon,lat)        << (window_center_ll.x,window_center_ll.y)
+	_local view_scale       << sw:!current_rendering_context!.view_scale
+
+	_if view_scale _is _unset 
+	_then
+		_return 
+	_endif
+
+	_local a_view << a_wmc_collection.source_view
+	_local rex << a_wmc_collection.descriptor.record_exemplar
+	
+	_local zoom_level << rex.get_level_of_detail(lat,view_scale,current_map_view.wmc_dpi)
+
+	zoom_level << zoom_level.min(a_view.max_zoom_level(a_wmc_collection)).max(a_view.min_zoom_level(a_wmc_collection))
+
+	
+	# now we need to figure out the TopLeft and BottomRight window
+	# VEPixel coordinates for the current zoom_level.
+	_local windowTopLeftLL , windowBottomLeftLL , windowBottomRightLL , windowTopRightLL
+
+	_if using_viewport_layout?
+	_then
+		windowTopLeftLL     << world_bounds_ll.top_left
+		windowBottomLeftLL  << world_bounds_ll.bottom_left
+		windowBottomRightLL << world_bounds_ll.bottom_right
+		windowTopRightLL    << world_bounds_ll.top_right
+	_else 
+		windowTopLeftLL     << pixel_to_ll_xform.convert(coordinate(0,0))
+		windowBottomLeftLL  << pixel_to_ll_xform.convert(coordinate(0,pbounds.height))
+		windowBottomRightLL << pixel_to_ll_xform.convert(coordinate(pbounds.width,pbounds.height))
+		windowTopRightLL    << pixel_to_ll_xform.convert(coordinate(pbounds.width,0))
+	_endif
+
+	_dynamic !print_float_precision! << 12
+
+	_local maxLat << windowTopLeftLL.y.max(windowTopRightLL.y).max(windowBottomLeftLL.y).max(windowBottomRightLL.y)
+	_local minLat << windowTopLeftLL.y.min(windowTopRightLL.y).min(windowBottomLeftLL.y).min(windowBottomRightLL.y)
+	_local maxLon << windowTopLeftLL.x.max(windowTopRightLL.x).max(windowBottomLeftLL.x).max(windowBottomRightLL.x)
+	_local minLon << windowTopLeftLL.x.min(windowTopRightLL.x).min(windowBottomLeftLL.x).min(windowBottomRightLL.x)
+
+	_local width << 0
+	_local height << 0
+
+	_for i _over range(zoom_level,1,-1)
+	_loop
+		zoom_level << i
+
+		_local (minX,maxY) << rex.longlat_to_pixel_xy(minLon,minLat,zoom_level)
+		_local (maxX,minY) << rex.longlat_to_pixel_xy(maxLon,maxLat,zoom_level)
+
+		width  << maxX - minX
+		height << maxY - minY
+
+		_if width <= rex.MAX_TILE_WIDTH _andif
+		    height <= rex.MAX_TILE_HEIGHT
+		_then
+			_leave
+		_endif
+
+		# keep looping ever increasing the zoom level until we have
+		# found a tile that will fill the required Lat/Long bounding
+		# box. 
+	_endloop
+
+	_local a_qk << write_string("static_map",
+				      "|",
+				      "&center=",     (maxLat + minLat)/2.0,",",(maxLon + minLon) / 2.0,
+				      "&zoom=",       zoom_level,
+				      "&size=",       width,"x",height,
+				      "|",
+				      "maxLat=",maxLat,",",
+				      "minLat=",minLat,",",
+				      "maxLon=",maxLon,",",
+				      "minLon=",minLon)
+
+
+	_loopbody (a_qk)
+_endmethod
+$
+_pragma(classify_level=restricted, topic={simple_grid})
+_method simple_grid.new_transparent_from_file(filename,t_colour)
+	## 
+	## Convert a BMP to an in-memory simple_grid with
+	## the transparent pixels set to a value that the
+	## rendering engine will understand.
+
+	_local sg
+	
+	_local ir << raster_image.new_from_file(filename)
+	
+	_protect
+		_local (w,h,d) << ir.size()
+		sg << simple_grid.new(pixel_bounding_box.new(1,1,w,h),:integer)
+
+		# Cache the colour codes for speed.
+		_local colours << hash_table.new()
+		_local transparent_v << t_colour.rgb24_code
+		_local v , n_c, col
+
+		_for x _over 0.upto(w-1)
+		_loop
+			_for y _over 0.upto(h-1)
+			_loop
+				v << ir.pixel(x,y)
+
+				# Cache the colour codes
+				_if (n_c << colours[v]) _is _unset 
+				_then
+					col << _self.colour_from_24bit_val(v)
+
+					# Swap the BLUE and RED colour values 
+					n_c << colour.new_rgb(col.blue,col.green,col.red)
+					colours[v] << n_c.rgb24_code
+				_endif
+
+				# Set the simple_grid pixel
+				sg[x+1,y+1] << _if (v = transparent_v)
+					       _then
+						       >> _self.transparent_24bit_val
+					       _else
+						       >> colours[v]
+					       _endif
+			_endloop
+		_endloop
+	_protection
+		ir.destroy()
+	_endprotect
+	
+	_return sg
+_endmethod
+$
+_pragma(classify_level=restricted, topic={simple_grid})
+_method if_ve_acp.new_transparent_simple_grid(w,h,t_colour)
+	## Convert a BMP to an in-memory simple_grid with
+	## the transparent pixels set to a value that the
+	## rendering engine will understand.
+	
+	_local sg << simple_grid.new(pixel_bounding_box.new(1,1,w,h),:integer)
+
+	# Cache the colour codes for speed.
+	_local colours << hash_table.new()
+	_local transparent_v << t_colour.rgb24_code
+	_local v , n_c, col
+	_local rgb_vec << {_unset,_unset,_unset}
+	
+	_for x _over 1.upto(w)
+	_loop
+		_for y _over 1.upto(h)
+		_loop
+			# THIS WE GET FROM THE ACP!!!!
+			#v << ir.pixel(x,y)
+
+			rgb_vec[1] << _self.get_unsigned_byte()
+			rgb_vec[2] << _self.get_unsigned_byte()
+			rgb_vec[3] << _self.get_unsigned_byte()
+			
+			show(:rgb_vector,_scatter rgb_vec)
+			
+#			# Cache the colour codes
+#			_if (n_c << colours[v]) _is _unset 
+#			_then
+#				col << sg.colour_from_24bit_val(v)
+#
+#				# Swap the BLUE and RED colour values 
+#				n_c << colour.new_rgb(col.blue,col.green,col.red)
+#				colours[v] << n_c.rgb24_code
+#			_endif
+#
+#			# Set the simple_grid pixel
+#			sg[x,y] << _if (v = transparent_v)
+#				       _then
+#					       >> sg.transparent_24bit_val
+#				       _else
+#					       >> colours[v]
+#				       _endif
+		_endloop
+	_endloop
+	
+	>> sg
+_endmethod
+$
+
+_pragma(classify_level=restricted)
+_method if_ve_acp.draw_tiles(a_canvas,a_wmc_collection)
+	## draw_tiles(canvas A_CANVAS,
+	##            wmc_collection A_WMC_COLLECTION) : _unset
+	##
+	## populates A_CANVAS with all the quadkeys for the appropriate
+	## zoom level by telling the ACP to get tiles based on
+	## A_WMC_COLLECTION 
+
+	_dynamic !if_wmc_birdseye_direction!
+	_dynamic !if_wmc_birdseye_latitude_shift!
+	_dynamic sw:!ve_connector_current_map_view!
+
+	_local tile_info << rope.new()
+
+	_if a_wmc_collection.is_kind_of?(property_list)
+	_then
+		# then we have a streetview and need to send that information
+		# to the ACP.
+
+		_local a_qk << write_string("&size=", a_wmc_collection[:size],
+					    "&location=",a_wmc_collection[:latitude],",",a_wmc_collection[:longitude],
+					    "&fov=",a_wmc_collection[:fov],
+					    "&heading=",a_wmc_collection[:heading],
+					    "&pitch=",a_wmc_collection[:pitch])
+
+
+		tile_info.add_last({a_qk,transform.identity_transform})
+	_else 		
+		_if a_wmc_collection.source_view.name _is :birdseye_dataset
+		_then
+			_local view_rotation << sw:!ve_connector_current_map_view!.current_view_parameters().rotation.radians_to_degrees
+			_if view_rotation >= 315 _orif
+			    view_rotation < 45
+			_then
+				!if_wmc_birdseye_direction! << "n"
+
+			_elif view_rotation >= 45 _andif
+			      view_rotation < 135
+			_then
+				!if_wmc_birdseye_direction! << "w"
+				
+			_elif view_rotation >= 135 _orif
+			      view_rotation < 225
+			_then
+				!if_wmc_birdseye_direction! << "s"
+			_elif view_rotation >= 225 _orif
+			      view_rotation < 315
+			_then
+				!if_wmc_birdseye_direction! << "e"
+			_endif
+
+			_local (window_center_ll,world_bounds_ll,pixel_to_ll_xform,pbounds) << a_canvas.window_lat_long_info()
+
+			!if_wmc_birdseye_latitude_shift! << birdseye_rwo_record.lat_shift_for_bounds(world_bounds_ll)
+
+		_endif
+		
+		_local rex << a_wmc_collection.descriptor.record_exemplar
+		
+		_for i_quadkey _over a_canvas.int!quadkeys(a_wmc_collection)
+		_loop
+			tile_info.add_last({i_quadkey,_self.get_tile_transform(rex,a_canvas,i_quadkey)})
+		_endloop
+
+	_endif
+
+	_if _not tile_info.empty?
+	_then
+		_self.draw_tiles_on_canvas(a_canvas,tile_info,a_wmc_collection)
+	_endif
+	
+_endmethod
+$
+
+
+
+_pragma(classify_level=restricted)
+_private _method if_ve_acp.get_tile_transform(a_wmc_rwo_record,a_canvas,tile_quadkey)
+	## get_tile_transform(wmc_rwo_record A_WMC_RWO_RECORD,
+	##                    canvas A_CANVAS,
+	##                    string TILE_QUADKEY) : transform
+	##
+	## draws the tile represented by TILE_QUADKEY onto A_CANVAS. 
+
+	_dynamic !current_coordinate_system!
+	_dynamic sw:!ve_connector_current_map_view!
+
+	_local current_map_view << sw:!ve_connector_current_map_view!
+	_local using_viewport_layout? << current_map_view.is_kind_of?(viewport_layout)
+
+	_local coords_longlat << a_wmc_rwo_record.tile_outline_in_ll(tile_quadkey)
+
+	_local transform_ll_to_ccs << transform.new_converting_cs_to_cs(wmc_dataset.LONGLAT_COORDINATE_SYSTEM,!current_coordinate_system!)
+	_local transform_ll_to_canvas_pixels << transform_ll_to_ccs.multiply(a_canvas.transform)
+
+	# ... we need to figure out the pixel-to-pixel transform to
+	# tell the ACP about
+	_local uri_coords << a_wmc_rwo_record.tile_outline_in_pixels(tile_quadkey)
+					    
+	_return transform.new_converting(uri_coords,coords_longlat.transformed(transform_ll_to_canvas_pixels))
+_endmethod
+$
+
+_pragma(classify_level=advanced)
+## used in if_ve_acp.draw_tiles_on_canvas() when sending tiles
+## to the plot_window canvas.  It turns out that the
+## plot_window canvas typically has a higher DPI than the map
+## canvas.  A higher DPI means that more pixels need to be
+## drawn on the plot_window.  This means that a larger BMP file
+## needs to be sent from the ACP to Magik.  The larger the BMP
+## the longer it takes to render to the plot_window.  Modifying
+## this PLOTTING_CANVAS_REDUCTION_FACTOR allows us to balance
+## speed versus beauty.  A factor value of 2, for example,
+## means that there will be half as many pixels sent from the
+## ACP as can be handled by the plot_window.  As the factor
+## value gets bigger, you will notice the output looking
+## blockier. 
+if_ve_acp.define_shared_constant(:PLOTTING_CANVAS_REDUCTION_FACTOR,
+	2.0,
+	_true)
+$
+_pragma(classify_level=advanced, usage={redefinable})
+## used in if_ve_acp.draw_tiles_on_canvas() to specify a
+## suitable transparency colour so that we can plot transparent
+## WMC layers.  This colour should be one that is not used for
+## any map features.
+if_ve_acp.define_shared_constant(:PLOTTING_TRANSPARENT_COLOUR,
+	                         colour.new_with_properties(:red,255,
+							    :green,235,
+							    :blue,255,
+							    :scale,255),
+				 _true)
+$
+_pragma(classify_level=restricted)
+## This is the complement to PLOTTING_TRANSPARENT_COLOUR
+if_ve_acp.define_shared_constant(:ADJUSTED_PLOTTING_TRANSPARENT_COLOUR,
+	                         colour.new_with_properties(:red,255,
+							    :green,243,
+							    :blue,255,
+							    :scale,255),
+				 _true)
+$
+_pragma(classify_level=restricted)
+## if, when plotting large layouts with WMC layers, you get a
+## traceback about a raster_image prim error, you can adjust
+## this number downward.
+if_ve_acp.define_shared_constant(:PLOTTING_CLIP_WIDTH,2000,_true)
+$
+_pragma(classify_level=restricted)
+## if, when plotting large layouts with WMC layers, you get a
+## traceback about a raster_image prim error, you can adjust
+## this number downward.
+if_ve_acp.define_shared_constant(:PLOTTING_CLIP_HEIGHT,2000,_true)
+$
+
+_pragma(classify_level=restricted)
+_private _method if_ve_acp.draw_tiles_on_canvas(a_canvas,tile_info,a_wmc_collection)
+	## write_image_on_canvas(canvas A_CANVAS,
+	##                       rope TILE_INFO,
+	##                       wmc_collection A_WMC_COLLECTION) : _unset
+	##
+	## writes the tiles referenced in TILE_INFO onto A_CANVAS.
+	## A_WMC_COLLECTION is required so we can tell the ACP the
+	## vendor name as well as the tile type.
+
+	_dynamic !if_wmc_render_all_tiles_together?!
+	
+	_self.init_if_necessary()
+
+	_local me << _self
+	_local message_pipe << :running
+	_local tile_rendering_block_size << 1
+
+	_local plotting? << a_canvas.is_kind_of?(plot_window) _orif
+			    (a_canvas.is_kind_of?(graphics_context) _andif
+			     a_canvas.wmc_surface_id.is_kind_of?(plot_window))
+	
+	_local plotting_scale_factor << _self.PLOTTING_CANVAS_REDUCTION_FACTOR
+
+
+	_if plotting? _orif
+	    !if_wmc_render_all_tiles_together?!
+	_then
+		# if we are plotting, then there is no need to have a small
+		# tile rendering block size.  Set the size to be the same as
+		# tile_info.size and that will save the number of BMP files
+		# that get passed between ACP and Magik.
+		tile_rendering_block_size << tile_info.size
+	_endif
+
+	_local plotting_transparent_colour , adjusted_plotting_transparent_colour
+	
+	_if plotting?
+	_then
+		plotting_transparent_colour          << _self.PLOTTING_TRANSPARENT_COLOUR
+		adjusted_plotting_transparent_colour << _self.ADJUSTED_PLOTTING_TRANSPARENT_COLOUR
+	_endif 
+
+	_if plotting? _andif
+	    plotting_scale_factor <> 1
+	_then
+		# if we are modifying the plotting_scale_factor to be something
+		# other than 1, then we need to modify the transforms in
+		# TILE_INFO to scale the tiles correctly.
+		_for i _over range(1,tile_info.size)
+		_loop
+			tile_info[i][2] << tile_info[i][2].multiply(transform.scale(1.0 / plotting_scale_factor))
+		_endloop
+		
+	_endif
+
+	
+	_local max_clip_width  << _self.PLOTTING_CLIP_WIDTH
+	_local max_clip_height << _self.PLOTTING_CLIP_HEIGHT
+	
+	# put this entire code in a thread that we can stop cleanly
+	# without killing the entire ACP process.
+	_proc@calls_to_sw_ve_acp()
+		_import me , message_pipe , a_canvas , tile_info , a_wmc_collection , tile_rendering_block_size
+		_import plotting? , plotting_scale_factor , plotting_transparent_colour , adjusted_plotting_transparent_colour
+		_import max_clip_width , max_clip_height
+		_global sw:g_opacity_scale
+		_local ok? << _false 
+
+		_protect
+			_locking me
+			me.locked_start()
+
+			_local mem_canvas
+			_local temp_file_name , ri
+			_local temp_file_name_png
+			_local temp_file_name_bmp
+			
+			_local width << a_canvas.width
+			_local height << a_canvas.height
+
+			_local is_street_view? << a_wmc_collection.is_kind_of?(property_list)
+			_local is_mbtiles? << _not is_street_view? _andif a_wmc_collection.source_view.is_kind_of?(mbtiles_dataset)
+			_local is_mapbox? << _not is_street_view? _andif a_wmc_collection.source_view.is_kind_of?(mapbox_dataset)
+
+			_local opacity << _if is_street_view?
+					  _then
+						  >> 1.0
+					  _else 
+						  >> a_wmc_collection.an_element().record_exemplar.OPACITY * sw:g_opacity_scale / 100.0
+					  _endif
+			
+
+			temp_file_name_png << system.temp_file_name("if_ve_acp_canvas_copy.png")
+			temp_file_name_bmp << system.temp_file_name("if_ve_acp_canvas_copy.bmp")
+
+			# we only need the memory_canvas to write an image to a file.
+			# So we wrap it in a protect block here so that we can
+			# destroy() it as soon as we are done.
+			_if plotting?
+			_then
+				# pick a nice small memory canvas because we won't be using it
+				# anyways during plotting.  It is only used to convey the
+				# transparent colour back to the ACP.
+				_protect
+					mem_canvas << memory_canvas.new(2,2)
+					mem_canvas.background_colour << plotting_transparent_colour
+					mem_canvas.write_to_file(temp_file_name_png,:png)
+				_protection
+					mem_canvas.destroy()
+				_endprotect
+			_else
+				_if a_canvas.is_kind_of?(memory_canvas)
+				_then
+					# it is possible for A_CANVAS to already be a memory_canvas.
+					# In that case, we don't need to create a new memory canvas and
+					# just use A_CANVAS to write to file.  But because we don't own
+					# this memory_canvas, we also should not destroy it.
+					a_canvas.write_to_file(temp_file_name_png,:png)
+				_else
+					# on the other hand, if A_CANVAS is just a regular canvas, then
+					# we need to first create a memory_canvas and then, after we
+					# write it to file, destroy it.
+					_protect
+						mem_canvas << memory_canvas.new(a_canvas.width,a_canvas.height)
+						mem_canvas.copy_area(0,0,width,height,a_canvas,0,0)
+						mem_canvas.write_to_file(temp_file_name_png,:png)
+					_protection
+						mem_canvas.destroy()
+					_endprotect
+				_endif
+			_endif
+
+			me.send_method_command(3000)
+
+			# send TEMP_FILE_NAME_PNG
+			me.put_chars16(temp_file_name_png)
+			# send TEMP_FILE_NAME_BMP
+			me.put_chars16(temp_file_name_bmp)
+
+
+			# send DATASET_NAME
+			_local dataset_name
+			_if is_street_view?
+			_then
+				dataset_name << "google_dataset"
+			_else 
+				_local source_view << a_wmc_collection.source_view
+
+				_if source_view.is_kind_of?(wms_dataset)
+				_then
+					dataset_name << "wms_dataset"
+				_else 
+					dataset_name << source_view.DATASET_NAME.write_string.split_by(space_char).first
+				_endif
+			_endif
+			
+			me.put_chars16(dataset_name)
+
+			# send COLLECTION_NAME
+			_if is_street_view?
+			_then
+				me.put_chars16("streetview")
+			_else
+				me.put_chars16(a_wmc_collection.name.write_string)
+			_endif
+			me.flush()
+
+			# send the OPACITY_SETTING
+			me.put_short_float(opacity)
+
+			# send the EXTRA RENDERING INFO
+			_local extra_string << _if is_street_view?
+					       _then
+						       >> ""
+					       _elif is_mbtiles?
+					       _then
+						       >> a_wmc_collection.source_view.sqlite_db_filename(a_wmc_collection.name)
+					       _elif is_mapbox?
+					       _then
+						       >> write_string(a_wmc_collection.name)
+					       _else
+						       >> a_wmc_collection.an_element().record_exemplar.EXTRA_RENDERING_INFO.write_string
+					       _endif 
+			_if extra_string.empty?
+			_then
+				# ACP does not handle empty strings so we need to send a space
+				# char if string is empty.
+				extra_string << " "
+			_endif
+
+			# Google Static Maps API allows large "extra_string".  We need
+			# to use put_chars16_large() for that because the ACP chokes on
+			# large strings.  This still needs some more work so we leave
+			# it commented out for now.
+			#me.put_chars16_large(extra_string)
+			me.put_chars16(extra_string)
+			me.flush()
+			
+			# How many tiles to render at one time before sending the BMP
+			# back to Smallworld...
+			me.put_signed_int(tile_rendering_block_size)
+			me.flush()
+
+			# indicate whether we are in plotting mode
+			_if plotting?
+			_then
+				me.put_chars16("plotting")
+			_else 
+				me.put_chars16("not_plotting")
+			_endif
+
+			# send the canvas size
+			_if plotting?
+			_then 
+				me.put_signed_int((width / plotting_scale_factor).truncated)
+				me.put_signed_int((height / plotting_scale_factor).truncated)
+			_else 
+				me.put_signed_int(width)
+				me.put_signed_int(height)
+			_endif
+			
+			# How many TILE INFOs to expect...
+			me.put_signed_int(tile_info.size)
+
+			# ... now send each tile info.
+			_for i_tile_info _over tile_info.fast_elements()
+			_loop
+				_local quadkey     << i_tile_info[1]
+				_local a_transform << i_tile_info[2]
+				
+				# send QUADKEY
+				me.put_chars16(quadkey)
+				me.flush()
+				# send the transform to the ACP.
+				me.put_transform(a_transform)
+				me.flush()
+			_endloop
+
+			# do some try/catch handling here for the bit of code that does
+			# all the HTTP GET requests.
+			me.get_try_result()
+
+			# now enter a loop to keep polling for new canvas information.
+			
+			_loop
+				_if message_pipe _isnt :running
+				_then
+					me.put_chars16("quit")
+					me.flush()
+					_leave
+				_endif
+
+				me.put_chars16("next")
+				
+				_local acp_status << me.get_chars16()
+				#show("C# says: ",acp_status)
+
+				_if acp_status = "available"
+				_then
+					_local canvas_file_name << me.get_chars16()
+					
+					_if plotting?
+					_then
+						# this block of code makes clip requests to the ACP so that we
+						# can handle large sized plot layouts.  For some reason, the
+						# raster_image class we are using to populate the simple_grid
+						# has a memory limitation so we will use multiple clip bounds
+						# to send all the relevant information over. 
+						_local actual_width  << (width / plotting_scale_factor).truncated
+						_local actual_height << (height / plotting_scale_factor).truncated
+						
+						_local (column_count,column_count_remainder) << (actual_width/max_clip_width).integral_and_fraction()
+
+						_if column_count_remainder <> 0
+						_then
+							column_count +<< 1
+						_endif
+
+						_local (row_count,row_count_remainder) << (actual_height/max_clip_height).integral_and_fraction()
+
+						_if row_count_remainder <> 0
+						_then
+							row_count +<< 1
+						_endif
+
+						# tell the ACP how many loops to run
+						me.put_signed_int(column_count * row_count)
+
+						_local clip_x_start , clip_y_start
+						_local clip_x_end , clip_y_end
+
+						
+						_for i_row _over range(0,row_count-1,1)
+						_loop
+							clip_y_start       << (i_row * max_clip_height) + 1
+							clip_y_end         << (clip_y_start + max_clip_height - 1).min(actual_height)
+							actual_clip_height << (clip_y_end - clip_y_start + 1)
+
+							_for i_col _over range(0,column_count-1,1)
+							_loop
+								clip_x_start << (i_col * max_clip_width) + 1
+								clip_x_end << (clip_x_start + max_clip_width - 1).min(actual_width)
+								actual_clip_width << (clip_x_end - clip_x_start + 1)
+
+								me.put_signed_int(clip_x_start)
+								me.put_signed_int(clip_y_start)
+								me.put_signed_int(actual_clip_width)
+								me.put_signed_int(actual_clip_height)
+
+								# now wait until the ACP says we can proceed.
+								canvas_file_name << me.get_chars16()
+								
+								master_simple_grid << simple_grid.new_transparent_from_file(canvas_file_name,
+															    adjusted_plotting_transparent_colour)
+								
+								#master_simple_grid << me.new_transparent_simple_grid(width,height,
+								#adjusted_plotting_transparent_colour)
+								
+								a_canvas.draw_24bit_colour_simple_grid(master_simple_grid,
+												       transform.translate(clip_x_start,clip_y_start).scale(plotting_scale_factor),
+												       (opacity * 100).truncated)
+
+							_endloop
+						_endloop
+						
+					_else 
+						_over range(1,10)
+						_loop @test
+							_try _with cond
+								ri << raster_image.new_from_file(canvas_file_name)
+								_leave @test
+							_when error
+								#show("if_ve_acp.draw_tiles_on_canvas()",cond.report_string)
+							_endtry
+						_endloop
+						
+						a_canvas.render_raster(ri,0,0,_false)
+
+						ri.destroy()
+					_endif
+					
+					_over range(1,10)
+					_loop @test
+						_try _with cond
+							#show(:canvas_file_name,canvas_file_name)
+							system.unlink(canvas_file_name)
+						_when error
+							#show("if_ve_acp.draw_tiles_on_canvas()",cond.report_string)
+						_endtry
+					_endloop
+
+
+					# once we have rendered the available BMP on the canvas, we
+					# tell the ACP how many tiles to render at one time before
+					# sending the BMP back to Smallworld...
+					tile_rendering_block_size +<< 1
+
+					tile_rendering_block_size << tile_rendering_block_size.min(3)
+
+					me.put_signed_int(tile_rendering_block_size)
+					me.flush()
+					
+					_continue
+					
+				_elif acp_status = "wait"
+				_then
+					_continue
+					
+				_elif acp_status = "done"
+				_then
+					_leave
+				_endif
+			_endloop
+
+			_if ri _isnt _unset 
+			_then
+				ri.destroy()
+			_endif
+
+				_for fn _over {temp_file_name_png,temp_file_name_bmp}.fast_elements()
+				_loop
+					_if system.file_exists?(fn.default(""))
+					_then
+						system.unlink(fn,_true,_true)
+					_endif
+				_endloop
+
+			ok? << _true 
+		_protection
+
+			me.locked_end(ok?)
+			message_pipe << :stop
+		_endprotect
+
+
+	_endproc.fork_at(_thisthread.vm_priority-1)
+	
+	_protect
+		_loop
+			_try _with cond
+				_thisthread.sleep(500)
+
+			_when error
+			      write(cond.report_string)
+			_endtry
+
+			_if message_pipe _isnt :running
+			_then
+				_leave 
+			_endif
+		_endloop
+	_protection
+		message_pipe << :stop
+	_endprotect
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.get_osm_data(min_lon,min_lat,max_lon,max_lat,_optional filename, xapi_predicate)
+	## get_osm_data(float MIN_LON,
+	##              float MIN_LAT,
+	##              float MAX_LON,
+	##              float MAX_LAT,
+	##              optional string FILENAME,
+	##                       string XAPI_PREDICATE)
+	##
+	## returns a filename that contains the .osm file for the
+	## bounds specified as arguments to this method
+	##
+	## If FILENAME is specified, then that will be used to save the
+	## OSM data to. Otherwise, a system-generated temporary
+	## filename will be used.
+	##
+	## XAPI_PREDICATE is a string in the form described at
+	## http://wiki.openstreetmap.org/wiki/Xapi#Predicates
+
+	_self.init_if_necessary()
+			
+	_local ok? << _false
+
+	_if filename _is _unset 
+	_then
+		filename << system.temp_file_name("data_download.osm")
+	_endif
+
+	
+	
+	_protect
+		_locking _self
+		_self.locked_start()
+
+		_self.send_method_command(2002)
+
+		# send the bounding box info
+		_self.put_short_float(min_lon)
+		_self.put_short_float(min_lat)
+		_self.put_short_float(max_lon)
+		_self.put_short_float(max_lat)
+
+		_self.put_chars16(xapi_predicate.default(_self.EMPTY_STRING))
+
+		# send the name of the file that we want to save the OSM data to.
+		_self.put_chars16(filename)
+
+		_self.flush()
+
+		_self.get_try_result()
+
+
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect
+
+	_return filename
+_endmethod 
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.get_spatialstream_parcel_data(longitude,latitude)
+	## get_spatialstream_parcel_data(float LONGITUDE,
+	##                               float LATITUDE) : xml_document
+	##
+	## returns an XML document that contains the data requested
+	## from SpatialStream at location (LONGITUDE,LATITUDE)
+	_dynamic !print_float_precision! << 12
+
+	_self.init_if_necessary()
+
+	_local doc
+	
+	_local ok? << _false
+
+	_local filename << system.temp_file_name("spatialstream_parcel.xml")
+	
+	_protect
+		_locking _self
+		_self.locked_start()
+
+		_self.send_method_command(2003)
+
+		# send the bounding box info
+		_self.put_chars16(longitude.write_string)
+		_self.put_chars16(latitude.write_string)
+
+		# send the name of the file that we want to save the OSM data to.
+		_self.put_chars16(filename)
+
+		_self.flush()
+
+		_self.get_try_result()
+
+		doc << simple_xml.read_document_file(filename)
+		
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+
+		_if system.file_exists?(filename)
+		_then
+			system.unlink(filename)
+		_endif
+	_endprotect
+
+	_return doc
+_endmethod 
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.get_request(url_string)
+	## get_request(string URL_STRING) : string
+	##
+	## returns the string returned by URL_STRING
+	_dynamic !print_float_precision! << 12
+
+	_self.init_if_necessary()
+
+	_local a_string << ""
+	_local str
+	_local in_str
+	
+	_local ok? << _false
+
+	_local filename << system.temp_file_name("spatialstream_parcel.xml")
+	
+	_protect
+		_locking _self
+		_self.locked_start()
+
+		_self.send_method_command(2004)
+
+		_self.put_chars16(url_string)
+		# send the name of the file that we want to save the OSM data to.
+		_self.put_chars16(filename)
+
+		_self.flush()
+
+		_self.get_try_result()
+
+		str << external_text_input_stream.new(filename)
+		in_str << internal_text_output_stream.new()
+		
+		_local a_line
+
+		_loop
+			_if (a_line << str.get_line()) _is _unset 
+			_then
+				_leave
+			_endif
+
+			in_str.write(a_line)
+			in_str.newline()
+		_endloop
+		
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+
+		_if str _isnt _unset 
+		_then
+			str.close()
+		_endif
+		
+		_if system.file_exists?(filename)
+		_then
+			system.unlink(filename)
+		_endif
+	_endprotect
+
+	_return in_str.string
+_endmethod 
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.populate_spatialstream_parcel_table(longitude,latitude)
+	## populate_spatialstream_parcel_table(float LONGITUDE,
+	##                                     float LATITUDE) : _unset
+	##
+	## populates the spatialstream_dataset.collections[:spatialstream_parcel]
+	## table with the parcel records returned from SpatialStream at
+	## location (longitude,latitude)
+
+	_dynamic !current_coordinate_system! << spatialstream_dataset.LONGLAT_COORDINATE_SYSTEM
+
+	_local doc << _self.get_spatialstream_parcel_data(longitude,latitude)
+	_local area_string , apn , attributes , coords , an_extent , fips
+	_local coll << gis_program_manager.cached_dataset(:spatialstream_dataset).collections[:spatialstream_parcel]
+	
+	_for an_element _over doc.top_element.element_matching_name("Data").elements_matching_name("Row")
+	_loop
+		attributes << an_element.attributes
+		area_string << attributes["GEOMETRY"]
+		apn << attributes["APN"]
+		fips << attributes["FIPS"]
+
+		coords << area_string.split_by(%().last.split_by(%)).an_element().split_by(%,)
+		coords << coords.map(_proc(a_coord_string)
+					     _local components << a_coord_string.split_by(space_char)
+					     >> coordinate(components[1].as_number(),components[2].as_number())
+				     _endproc )
+
+		_local extent << pseudo_area.new(sector.new_from(coords))
+		extent.world << pseudo_world.new(spatialstream_dataset.LONGLAT_COORDINATE_SYSTEM)
+
+		_try _with cond
+			record_transaction.new_insert(coll,property_list.new_with(:apn,apn,:fips,fips,:extent,extent)).run()
+		_when error
+			write(cond.report_string)
+		_endtry
+	_endloop 
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method if_ve_acp.get_valid_vendor_datasets()
+	## get_valid_vendor_datasets() : rope of symbols
+	##
+	## returns a list of licensed vendor dataset names.
+
+	_self.init_if_necessary()
+
+	_local vendor_list << rope.new()
+	
+	_local ok? << _false
+	
+	_protect
+		_locking _self
+		_self.locked_start()
+
+		_self.send_method_command(9998)
+
+		_self.flush()
+
+		_local count << _self.get_signed_int()
+	
+		_for idx _over range(1,count)
+		_loop
+			vendor_list.add_last(_self.get_chars16().as_symbol())
+		_endloop
+		
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect
+
+	_return vendor_list
+	
+_endmethod
+$
+_pragma(classify_level=restricted)
+_method if_ve_acp.trace(trace_level,_gather objects)
+	## trace(integer TRACE_LEVEL,
+	##       gather OBJECTS) : _unset
+	##
+	## if .trace_level >= TRACE_LEVEL, then do a write(scatter
+	## objects). 
+	
+	_if .trace_level.default(0) >= trace_level
+	_then
+		write(_scatter objects)
+	_endif
+_endmethod
+$
+
+
+_pragma(classify_level=debug)
+_method if_ve_acp.set_trace_level(trace_level)
+	## set_trace_level(integer TRACE_LEVEL) : _unset
+	##
+	## sets the trace level for debug write statements from the
+	## ACP. 
+
+	_self.init_if_necessary()
+			
+	_local ok? << _false
+	
+	_protect
+		_locking _self
+		_self.locked_start()
+
+		_self.send_method_command(1)
+
+		_self.put_signed_int(trace_level)
+
+		.trace_level << trace_level
+		
+		_self.flush()
+
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect
+
+_endmethod
+$
+_pragma(classify_level=basic)
+_method if_ve_acp.clear_bitmap_cache(vendor_dataset_name)
+	## clear_bitmap_cache(string VENDOR_DATASET_NAME) : _unset
+	##
+	## clears the ACP's bitmap cache for VENDOR_DATASET_NAME
+
+	_self.init_if_necessary()
+			
+	_local ok? << _false
+	
+	_protect
+		_locking _self
+		_self.locked_start()
+
+		vendor_dataset_name << vendor_dataset_name.write_string.canonical
+		
+		_self.send_method_command(1)
+
+		_self.put_signed_int(trace_level)
+
+		_self.flush()
+
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect
+
+_endmethod
+$
+_pragma(classify_level=debug)
+_method if_ve_acp.show_dot_net_framework_versions()
+	## show_dot_net_framework_versions() : _unset
+	##
+	## lists all the .NET Framework Versions available on the
+	## current client machine.
+
+	_local dir << system.getenv("SYSTEMROOT")
+	dir << system.pathname_down(dir,"Microsoft.NET","Framework")
+
+	_local name
+	_local dc << directory_channel.new(dir,"v*")
+
+	_protect
+		_loop
+			_if (name << dc.get()) _is _unset 
+			_then
+				_leave
+			_endif
+
+			write(name)
+		_endloop
+	_protection
+		dc.close()
+	_endprotect
+_endmethod
+$
+
+
+
+
+
+
+_pragma(classify_level=debug)
+_method if_ve_acp.show_license_info()
+	## show_license_info() : _unset
+	## 
+
+	_local ok? << _false
+	_protect
+		_locking _self
+		_self.locked_start()
+		_self.send_method_command(9999)
+
+		write("CustomerID:  ",_self.get_chars16())
+		write("Expiry Date: ",_self.get_chars16())
+
+		write("Licensed datasets:")
+		_local vendor_modes << _self.get_chars16()
+		_for v _over vendor_modes.split_by(%,).fast_elements()
+		_loop
+			write(tab_char,v)
+		_endloop
+		
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect 
+
+_endmethod
+$
+
+_pragma(classify_level=debug)
+_method if_ve_acp.diagnosis()
+	## diagnosis() : _unset
+	##
+	## returns a dump to !output! of some useful diagnosis
+	## information
+
+	_dynamic !show_string_length! << 200
+	
+	write(".NET Framework versions")
+	write("=======================")
+	_self.show_dot_net_framework_versions()
+	write()
+	write("ACP Directories")
+	write("===============")
+	write("get_bin_dir(): ",_self.get_bin_dir())
+	write("get_local_bin_dir(): ",_self.get_local_bin_dir())
+	write(".command...")
+	print(.command)
+	write("SW_ACP_PATH: ",system.getenv("SW_ACP_PATH"))
+	write()
+	write("WMC-specific Web proxy info")
+	write("===========================")
+	_local info << _allresults _self.get_web_proxy_info()
+	show(_scatter info)
+	write()
+	write("Code Info")
+	write("=========")
+	_for a_method _over {map_view.method(:int!do_render|()|)}.fast_elements()
+	_loop
+		show(a_method)
+		write(tab_char,a_method.source_file)
+	_endloop
+	
+	write()
+	write("License information")
+	write("===================")
+	_self.show_license_info()
+	write()
+
+	write("geocoding_api_vendor_name: ",_self.geocoding_api_vendor_name)
+	
+_endmethod
+$
+_pragma(classify_level=debug)
+_method if_ve_acp.get_nearmap_dates(x,y,zoom_level)
+	## get_nearmap_dates(integer X,
+	##                   integer Y,
+	##                   integer ZOOM_LEVEL) : rope of dates 
+	##
+	## returns an ordered rope of date objects reflecting the dates
+	## that NearMap imagery was acquired at this location and zoom
+	## level.
+
+	_local dates << rope.new()
+	
+	_local ok? << _false
+	
+	_protect
+		_locking _self
+		_self.locked_start()
+		_self.send_method_command(10)
+
+		_self.put_signed_int(x)
+		_self.put_signed_int(y)
+		_self.put_signed_int(zoom_level)
+		
+		_self.get_try_result()
+
+		_local number_of_dates << _self.get_signed_int()
+		_local date_format << "#Y#m#d"
+		
+		_for i _over range(1,number_of_dates)
+		_loop
+			dates.add_last(date.new_from_string(_self.get_chars16(),date_format))
+		_endloop
+		
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect
+
+	_return dates
+_endmethod
+$
+_pragma(classify_level=debug)
+_method if_ve_acp.put_chars16_large(a_string)
+	## put_char16_large(string A_STRING) : _unset
+	##
+	## for some reason, the ACP doesn't handle very large strings
+	## nicely so we use this method to split A_STRING up into
+	## smaller bits before sending it to the corresponding
+	## acpGetStringLarge() method.
+
+	_constant MAX_STRING_SIZE << 100
+	_local a_string_size << a_string.size
+	_local number_of_string_parts << (a_string_size _div MAX_STRING_SIZE) + 1
+	_local from_idx , to_idx
+
+	_self.put_signed_int(number_of_string_parts)
+	
+	_for i _over range(0,number_of_string_parts-1,1)
+	_loop
+		from_idx << (i*MAX_STRING_SIZE) + 1
+		to_idx << ((i+1) * MAX_STRING_SIZE).min(a_string_size)
+		
+		_if from_idx < to_idx
+		_then
+			_self.put_chars16(a_string.slice(from_idx,to_idx))
+			_self.flush()
+		_endif
+	_endloop
+_endmethod
+$
+
+
+_pragma(classify_level=advanced)
+_method if_ve_acp.birdseye_metadata(longitude,latitude,zoom_level,vendor_tile_type)
+	# a test of the Bird's Eye functionality.
+	_self.init_if_necessary()
+
+	_local pl << property_list.new()
+	
+	_local ok? << _false
+	_protect
+		_locking _self
+		_self.locked_start()
+		_self.send_method_command(9996)
+
+		# SEND PARAMETERS TO ACP
+		_self.put_float(longitude)
+		_self.put_float(latitude)
+		_self.put_signed_int(zoom_level)
+		_self.put_chars16(vendor_tile_type)
+		
+		# WAIT FOR ACP PROCESSING
+		_self.get_try_result()
+
+		# RETRIEVE ACP RESULTS
+		pl[:uri] << _self.get_chars16()
+		pl[:tile_width] << _self.get_signed_int()
+		pl[:tile_height] << _self.get_signed_int()
+		pl[:tiles_x] << _self.get_signed_int()
+		pl[:tiles_y] << _self.get_signed_int()
+
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect
+
+	_return pl
+_endmethod 
+$
+_pragma(classify_level=restricted)
+_method if_ve_acp.ele(x,y)
+	# ele(float X, float Y) : unit_value
+	#
+	# returns the elevation at X,Y (in Long/Lat) using the MapQuest
+	# open API
+
+	_dynamic !print_float_precision! << 12
+	
+	_local url << write_string("http://open.mapquestapi.com/elevation/v1/getElevationProfile?unit=m&shapeFormat=raw&latLngCollection=",y,",",x)
+
+	_local elevation << 0
+
+	_local TRASH << rope.new()
+	_local regexp << TRASH.add_last(ole_client.createobject("vbscript.regexp"))
+	_protect
+		_local response << _self.get_request(url)
+
+		regexp.pattern << write_string('\"height\":-?\d+\.?\d*')
+		_local result << TRASH.add_last(regexp.execute(response))
+
+		_if result.count > 0
+		_then
+			elevation << TRASH.add_last(result.item(0)).value.split_by(%:).last.as_number()
+		_endif
+	_protection
+		_for o _over TRASH.fast_elements()
+		_loop
+			o.release_object()
+		_endloop
+	_endprotect
+
+	elevation << elevation.max(0)
+	
+	_return unit_value.new(elevation,:m)
+_endmethod
+$
+
+_pragma(classify_level=restricted)
+_method if_ve_acp.run_sqlite_command(database_file_name,command)
+	## command(string DATABASE_FILENAME,
+	##         string COMMAND) : external_text_input_stream
+	##
+	## makes a one-shot call against the SQLITE database at
+	## DATABASE_FILE_NAME with COMMAND.
+	##
+	## returns an external_text_input_stream that contains the
+	## results of the command.
+	
+	_local res_dir << _self.get_local_bin_dir()
+
+	_local cmd << {system.pathname_down(res_dir,"sqlite3.exe"),
+		       write_string(%",database_file_name,%"),
+		       write_string(%",command,%")}
+
+	_return system.input_from_command(cmd)
+	
+_endmethod
+$
+
+_pragma(classify_level=restricted)
+_method if_ve_acp.get_mapbox_metadata(account,handle)
+	
+	_self.init_if_necessary()
+
+	_local json_string
+	
+	_local ok? << _false
+	_protect
+		_locking _self
+		_self.locked_start()
+		_self.send_method_command(4000)
+
+		# SEND PARAMETERS TO ACP
+		_self.put_chars16(account)
+		_self.put_chars16(handle)
+		
+		# WAIT FOR ACP PROCESSING
+		_self.get_try_result()
+
+		# RETRIEVE ACP RESULTS
+		json_string << _self.get_chars16()
+
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect
+
+	_return json_parser.parse_string(json_string)
+	
+_endmethod
+$
+_pragma(classify_level=restricted)
+_method if_ve_acp.get_mapbox_grid_data(account,handle,zoom_level,tile_x,tile_y,pixel_x,pixel_y)
+	
+	_self.init_if_necessary()
+
+	_local json_string
+	
+	_local ok? << _false
+	_protect
+		_locking _self
+		_self.locked_start()
+		_self.send_method_command(4001)
+
+		# SEND PARAMETERS TO ACP
+		_self.put_chars16(account)
+		_self.put_chars16(handle)
+		_self.put_signed_int(tile_x)
+		_self.put_signed_int(tile_y)
+		_self.put_signed_int(zoom_level)
+		_self.put_signed_int(pixel_x)
+		_self.put_signed_int(pixel_y)
+		
+		# WAIT FOR ACP PROCESSING
+		_self.get_try_result()
+
+		# RETRIEVE ACP RESULTS
+		json_string << _self.get_chars16()
+		
+
+		ok? << _true 
+	_protection
+		_self.locked_end(ok?)
+	_endprotect
+
+	_return json_string
+	
+_endmethod
+$
+
+
+
+

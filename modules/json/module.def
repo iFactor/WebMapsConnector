@@ -1,0 +1,9 @@
+json	4000
+
+description
+	Code to parse/create JSON strings to/from Magik objects
+end
+
+requires
+
+end

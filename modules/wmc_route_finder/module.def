@@ -1,0 +1,11 @@
+wmc_route_finder	1
+
+description
+	Route Finder for Web Maps Connector
+end
+
+requires
+	triangulations
+	wmc_som
+end
+

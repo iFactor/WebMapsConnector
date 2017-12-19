@@ -1,0 +1,133 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+_pragma(classify_level=basic,usage={redefinable})
+wms_rwo_record.define_shared_constant(
+	:WMS_INFO,
+	_block
+		_local wms_info << hash_table.new()
+
+		
+		wms_info[:ktimanet] << property_list.new_with(
+
+					       :parent_name,"",
+					       :title,"KTIMANET",
+					       :base_url,"http://gis.ktimanet.gr/wms/wmsopen/wmsserver.aspx",
+					       :parameters,property_list.new_with(:exceptions,"application/vnd.ogc.se_xml",
+									 :format,"image/png",
+									 :layers,"KTBASEMAP",
+									 :version,"1.1.0")
+						     )
+					       
+		wms_info[:and_road] << property_list.new_with(
+					       :title,"AND Road",
+					       :base_url,"http://www.map20.org/gwc/service/wms",
+					       :parameters,property_list.new_with(:exceptions,"application/vnd.ogc.se_inimage",
+										  :format,"image/png",
+										  :layers,"and:road",
+										  :version,"1.1.1",
+										  :transparent,"true"),
+					       :drawing_priority,-23)
+
+		
+		wms_info[:drcog_rapid_transit] << property_list.new_with(
+							  :title,"DRCOG Rapid Transit",
+							  :base_url,"http://gis.drcog.org/geoserver/wms?",
+							  :parameters,property_list.new_with(:exceptions,"application/vnd.ogc.se_inimage",
+											     :format,"image/png",
+											     :layers,"DRCOG:rapid_transit",
+											     :version,"1.1.1",
+											     :transparent,"true"),
+							  :drawing_priority,-23)
+
+		wms_info[:farmakia] << property_list.new_with(
+						   :title,"Farmakia (Athens)",
+						   :base_url,"http://geography1.survey.ntua.gr/ArcGIS/services/NOMARXIA/ATHENS_SERVICE/MapServer/WMSServer",
+						   :parameters,property_list.new_with(:exceptions,"application/vnd.ogc.se_inimage",
+										      :layers,"3",
+										      :format,"image/png",
+										      :version,"1.1.1",
+										      :transparent,"true"),
+						   :drawing_priority,-23)
+
+		wms_info[:sod_usgs] << property_list.new_with(
+					       :title,"SoD - USGS Topo Maps",
+					       :base_url,"http://hsservices.datadoors.net/__streaminguid.4ab3d85b-2a13-4941-90b3-7e47103ec0e1/wms.ashx",
+					       :parameters,property_list.new_with(:exceptions,"application/vnd.ogc.se_xml",
+										  :layers,"8f54b019-f1bf-4bbe-9fb1-71889450057c",
+										  :format,"image/jpeg",
+										  :version,"1.1.1",
+										  :transparent,"false"),
+					       :drawing_priority,-24)
+
+		wms_info[:sod_bing_birdseye_south] << property_list.new_with(
+							      :title,"SoD - Birds Eye South",
+							      :base_url,"http://hsservices.datadoors.net/__streaminguid.d6a8fff1-d0eb-4a7f-a286-1801aa473256/wms.ashx",
+							      :parameters,property_list.new_with(:exceptions,"application/vnd.ogc.se_xml",
+												 :layers,"6ca0ff9e-9696-4f53-a887-631a533279bf",
+												 :format,"image/jpeg",
+												 :version,"1.1.1",
+												 :transparent,"false"),
+							      :drawing_priority,-24)
+
+		>> wms_info
+	_endblock,
+	_false)
+$
+
+_block
+	# based on the wms_rwo_record.WMS_INFO configuration, set up
+	# the other configuration information
+	_dynamic !current_package!
+	
+	_for wms_name,wms_info _over wms_rwo_record.WMS_INFO.fast_keys_and_elements()
+	_loop
+		_local exemplar_name << wms_name + :_wms_rwo_record
+		def_slotted_exemplar(exemplar_name,{},{:wms_rwo_record})
+	        _local exemplar << !current_package!.all_packages[:user][exemplar_name]
+		exemplar.base_url   << wms_info[:base_url]
+		exemplar.parameters << wms_info[:parameters]
+		exemplar.init_extra_rendering_info()
+		
+		_local collection_name << wms_name
+		wms_dataset_manager.DRAWING_PRIORITY[collection_name] << wms_info[:drawing_priority].default(-24)
+
+		_local pl << property_list.new_with(
+				     :fields,property_list.new_with(:id, {:physical, :ds_int, :key, _unset,:external_name, "Object ID"},
+								    :tile, {:geometry, :wmc_tile,:nonman}
+							   ),
+				     :exemplar, exemplar,
+				     :external_name, wms_info[:title]
+					   )
+
+		wms_dataset.DATASET_INSTANCE_METADATA[wms_dataset.DATASET_NAME][:collections][collection_name] << pl
+	_endloop
+
+	_local a_ds << gis_program_manager.cached_dataset(:wms_dataset)
+
+	_if a_ds _isnt _unset 
+	_then
+		smallworld_product.applications.an_element().plugin("ve").sys!perform(:new_remove_dataset|()|,a_ds)
+	_endif
+_endblock
+$

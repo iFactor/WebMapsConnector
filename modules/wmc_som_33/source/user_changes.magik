@@ -1,0 +1,292 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+_global convert_instance_metadata_to_33 <<
+_proc@convert_instance_metadata_to_33(instance_metadata)
+	## convert_instance_metadata_to_33(property_list INSTANCE_METADATA) : _unset
+	##
+	## Some of the universal_dataset.dataset_instance_metadata
+	## property_list keys are different in CST 3.3 vs 4.x. This
+	## procedure ensures that the 3.3 conventions are followed.
+	##
+	## Example:
+	## ========
+	## convert_instance_metadata_to_33(bing_dataset.dataset_instance_metadata)
+
+	# split :fields into :physical_fields, :geom_fields and :key
+
+	_local field_type_mappings << property_list.new_with(:extdb_char,:extdb_string)
+	
+	_for ds_name,ds_metadata _over instance_metadata.keys_and_elements()
+	_loop
+		_for coll_name , coll_info _over ds_metadata[:collections].keys_and_elements()
+		_loop
+			_local fields << coll_info[:fields]
+			
+			_if fields _is _unset 
+			_then
+				_continue
+			_endif
+
+
+			# :physical_fields - {fname, type_name, size}
+			# :geom_fields - :type,type
+			# :key is a list of physical field indices
+
+			_local geom_fields << property_list.new()
+			_local phys_fields << rope.new()
+			_local key_vec << rope.new()
+			_local field_type
+			
+			# first do the key fields...
+			_for field_name , field_def _over fields.fast_keys_and_elements()
+			_loop
+				_if field_def[1] _is :physical _andif
+				    field_def[3] _is :key
+				_then
+					field_type << field_def[2]
+					phys_fields.add_last({field_name,
+							      field_type_mappings[field_type].default(field_type),
+							      field_def[4]})
+					key_vec.add_last(phys_fields.size)
+					fields.remove_key(field_name)
+				_endif
+			_endloop
+
+			# ... and then do all the other fields
+			_for field_name , field_def _over fields.fast_keys_and_elements()
+			_loop
+				_if field_def[1] _is :physical
+				_then
+					field_type << field_def[2]
+					phys_fields.add_last({field_name,
+							      field_type_mappings[field_type].default(field_type),
+							      field_def[4]})
+					
+				_elif field_def[1] _is :geometry
+				_then
+					geom_fields[field_name] << property_list.new_with(:type,field_def[2])
+				_endif
+			_endloop
+
+			coll_info.remove_key(:fields)
+			coll_info[:physical_fields] << phys_fields.as_simple_vector()
+			coll_info[:key] << key_vec.as_simple_vector()
+			coll_info[:geom_fields] << geom_fields
+		_endloop 
+		
+	_endloop
+	
+_endproc
+$
+_method wmc_rwo_record.descriptor
+	## 3.3 Universal RWO code for some reason doesn't set
+	## :descriptor on uds_record.  Subclass the behaviour here so
+	## that it at least works with the WMC records.
+	_return _self.source_collection.descriptor
+_endmethod   
+$
+_pragma(classify_level=restricted, topic={universal_rwo}, usage={internal})
+_private _method wmc_rwo_record.init_for_collection(a_collection)
+	##
+	## Used to create a new uds_record associated with a
+	## collection A_COLLECTION.
+	##
+	#
+	## I think there is a bug in the 3.3 Universal RWO code.
+	## Backported this uds_record method from 4.1 and subclassed it
+	## on wmc_rwo_record so that it at least works fro WMC
+	.source_collection << a_collection
+	_if (td << a_collection.descriptor) _isnt _unset 
+	_then
+		fd_size << td.physical_fields.size + td.geometry_fields.size
+		_self.ds!vector << {}.new(fd_size)
+	_else
+		_self.ds!vector << _self.ds!vector.copy()
+	_endif
+	>> _self 	
+_endmethod
+$
+_method wmc_dataset_manager.render_in(a_graphics_view,_gather args)
+
+	_dynamic !current_coordinate_system!
+
+	_if !current_coordinate_system! _is _unset
+	_then
+		!current_coordinate_system! << _self.custom_coordinate_system()
+	_endif 
+
+	_dynamic !current_rendering_context! << a_graphics_view
+	_dynamic !ve_connector_current_map_view! << a_graphics_view
+
+	_return _super.render_in(a_graphics_view,_scatter args)
+_endmethod 
+$
+
+_pragma(classify_level=restricted, topic={universal_rwo},usage={subclassable})
+_iter _method wmc_dataset.scan_elements( bounds, _optional select_filter, rwo_predicates )
+	##
+        ## Yields geometries overlapping BOUNDS.
+	##
+	## The optional SELECT_FILTER can be a list of geometry field
+        ## descriptors. If specifed, this restricts the scan to 
+	## those geometries in the list. 
+	##
+	## RWO_PREDICATES is a hash_table keyed on rwo type. If
+	## specified, geometry belonging to the RWO types included in
+	## this table will be yielded only if the owning RWO satisfies the
+	## predicate. NOT implemented on this class!!!
+	##
+	## This default implementation is extremely inefficient.
+	##
+	## Subclass this method to do efficient spatial scanning.
+	##
+	## Updates
+	## 03/04/2003 : Bounds with _unset value is handled.
+	## 10/09/2004 : Implements filtering on rwo_predicates
+	##
+	##
+	## THIS IS A COPY OF universal_dataset.scan_elements().  That
+	## method had a problem in it where it did not recognize two
+	## field_descriptors for the same field but taken from
+	## different dataset (one the original and one a Replica).
+	## This subclass corrects that.
+
+
+	all_collections << .collections
+
+	_if select_filter _is _unset
+	_then
+		scan_collections << all_collections
+	_else
+		scan_collections << hash_table.new()
+		
+		_for a_geom_field _over select_filter.fast_elements()
+		_loop
+			t_name << a_geom_field.owner.name
+			_if all_collections[t_name ] _isnt _unset
+			_then
+				scan_collections[t_name] << all_collections[t_name]
+			_endif
+		_endloop 
+	_endif
+	
+	_for a_collection _over scan_collections.fast_elements()
+	_loop
+		geom_fields << a_collection.descriptor.geometry_fields
+
+		_if rwo_predicates _isnt _unset
+		_then
+			pred << rwo_predicates [ a_collection.name ]
+		_endif
+
+		_if select_filter _is _unset
+		_then
+			scan_fields << geom_fields
+		_else
+			# START CHANGE
+			#
+			# iFactor Consulting
+			_local canonicalize_fd << _proc(a_fd)
+							  # convert A_FD into a symbol so that we can do correct checking
+							  # in SCAN_FIELDS
+							  >> write_string(a_fd.owner.name,"-",a_fd.name).as_symbol()
+						  _endproc
+			
+			_local select_filter_names << select_filter.map(_proc(a_fd)
+										_import canonicalize_fd
+										
+										>> canonicalize_fd(a_fd)
+									_endproc)
+
+			# END CHANGE
+			scan_fields << keyed_set.new()
+
+			_for a_field _over geom_fields.fast_elements()
+			_loop
+				# START CHANGE
+                                # 
+				# this :includes?() check does not seem to work when comparing
+				# the same field_descriptors that were generated from a main
+				# and Replica view, respectively.  To get around this, we do a
+				# comparison based on a canonicalized form of the
+				# field_descriptor.
+                                #_if select_filter.includes?( a_field )
+				_if select_filter_names.includes?( canonicalize_fd(a_field) )
+				# END CHANGE
+				_then
+					scan_fields.add( a_field )
+				_endif
+			_endloop
+		_endif 
+
+		_if scan_fields.size > 0
+		_then
+			_if bounds _isnt _unset 
+			_then 
+				_for r _over a_collection.fast_elements()
+				_loop
+					_if pred _isnt _unset _andif
+					    pred.test? ( r ) _isnt _true
+					_then
+						_continue
+					_endif
+					
+					_for gf _over scan_fields.elements()
+					_loop
+						# Alfred Sawatzky
+						# for WMC data we don't need to do a bounds check because we
+						# know the tiles ALWAYS cover the entire world.
+						_if ( a_geom << r.perform( gf.name )) _isnt _unset# _andif
+					    	#bounds.intersection( a_geom.bounds ) _isnt _unset 
+						_then
+							_loopbody( a_geom )
+						_endif 
+					_endloop 
+				_endloop
+			_else 
+				_for r _over a_collection.fast_elements()
+				_loop
+					_if pred _isnt _unset _andif
+					    pred.test? ( r ) _isnt _true
+					_then
+						_continue
+					_endif
+					
+					_for gf _over scan_fields.elements()
+					_loop
+						_if ( a_geom << r.perform( gf.name )) _isnt _unset 
+						_then
+							_loopbody( a_geom )
+						_endif 
+					_endloop 
+				_endloop
+			_endif 
+		_endif
+	_endloop 
+	
+_endmethod
+$
+
+
+

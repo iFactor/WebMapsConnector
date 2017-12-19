@@ -1,0 +1,11 @@
+wmc_som	4100
+
+description
+	Web Maps Connector SOM
+end
+
+requires
+	mclib_http_interface
+	mclib_dotnet_acp
+  json
+end

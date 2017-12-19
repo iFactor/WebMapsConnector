@@ -1,0 +1,9 @@
+additions/
+changes/
+google_streetview
+google_streetview_2
+google_streetview_framework
+google_streetview_framework_2
+google_streetview_plugin
+google_streetview_plugin_2
+glue/

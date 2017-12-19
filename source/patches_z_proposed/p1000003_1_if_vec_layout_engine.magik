@@ -1,0 +1,70 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package sw
+$
+
+################################################################
+##
+## p1000003.1_if_vec_layout_engine
+##
+## It is helpful to for a rendering_context to include which
+## map_view invoked the rendering_context.  This patch adds
+## dynamic sw:!ve_connector_current_map_view! in
+## viewport_layout.draw_content_on()   
+##
+################################################################
+
+sw!patch_software("wmc_som",4100)
+$
+sw!patch_software("layout_engine",1)
+$
+
+# use define_method_synonym() to wrap some of our behavior
+# around the core method without redefining the core behavior. 
+_if viewport_layout.method(:original!draw_content_on|()|) _is _unset 
+_then
+	viewport_layout.define_method_synonym(:original!draw_content_on|()|,:draw_content_on|()|)
+_endif
+$
+
+_pragma(classify_level=restricted)
+_method viewport_layout.draw_content_on ( window )
+	## 
+	## Render contents of SELF on WINDOW
+	##
+
+	_dynamic !ve_connector_current_map_view! << _self
+	
+	_return _self.original!draw_content_on(window)
+_endmethod
+$
+_pragma(classify_level=basic)
+_method viewport_layout.current_display_coordinate_system
+	## current_display_coordinate_system : coordinate_system
+	##
+	## returns self.coordinate_system
+
+	_return _self.coordinate_system
+_endmethod
+$
+sw!declare_patch(1000003,"1_if_vec_layout_engine","Add dynamic sw:!ve_connector_current_map_view! in viewport_layout.draw_content_on()")
+$

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="windows-1252" standalone="yes"?>
+<config>
+	<plugins>
+		<plugin name="wmc_route_finder" class_name="user:wmc_route_finder"/>
+	</plugins>
+</config>

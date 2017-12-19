@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="windows-1252" standalone="yes"?>
+<config>
+	<plugins>
+		<plugin name="google_streetview" class_name="google_streetview"/>
+	</plugins>
+</config>

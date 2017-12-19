@@ -1,0 +1,2 @@
+C:\Documents and Settings\mirandap\My Documents\Visual Studio 2005\Projects\sw_dotnet_acp\sw_dotnet_acp\obj\Release\sw_dotnet_acp.exe
+C:\Documents and Settings\mirandap\My Documents\Visual Studio 2005\Projects\sw_dotnet_acp\sw_dotnet_acp\obj\Release\sw_dotnet_acp.pdb

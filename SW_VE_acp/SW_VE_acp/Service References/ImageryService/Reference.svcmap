@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ReferenceGroup xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" ID="f8139c0e-2205-4088-8856-8651a9d20909" xmlns="urn:schemas-microsoft-com:xml-wcfservicemap">
+  <ClientOptions>
+    <GenerateAsynchronousMethods>false</GenerateAsynchronousMethods>
+    <EnableDataBinding>true</EnableDataBinding>
+    <ExcludedTypes />
+    <ImportXmlTypes>false</ImportXmlTypes>
+    <GenerateInternalTypes>false</GenerateInternalTypes>
+    <GenerateMessageContracts>false</GenerateMessageContracts>
+    <NamespaceMappings />
+    <CollectionMappings />
+    <GenerateSerializableTypes>true</GenerateSerializableTypes>
+    <Serializer>Auto</Serializer>
+    <UseSerializerForFaults>true</UseSerializerForFaults>
+    <ReferenceAllAssemblies>true</ReferenceAllAssemblies>
+    <ReferencedAssemblies />
+    <ReferencedDataContractTypes />
+    <ServiceContractMappings />
+  </ClientOptions>
+  <MetadataSources>
+    <MetadataSource Address="http://staging.dev.virtualearth.net/webservices/v1/imageryservice/imageryservice.svc?wsdl" Protocol="http" SourceId="1" />
+  </MetadataSources>
+  <Metadata>
+    <MetadataFile FileName="imageryservice1.wsdl" MetadataType="Wsdl" ID="540b1efc-5b84-45c8-883f-1bd450586f53" SourceId="1" SourceUrl="http://staging.dev.virtualearth.net/webservices/v1/metadata/imageryservice/imageryservice1.wsdl" />
+    <MetadataFile FileName="ImageryService31.xsd" MetadataType="Schema" ID="46ef6087-63ac-4a8a-9b0c-e3849714396f" SourceId="1" SourceUrl="http://staging.dev.virtualearth.net/webservices/v1/metadata/imageryservice/ImageryService3.xsd" />
+    <MetadataFile FileName="ImageryService5.xsd" MetadataType="Schema" ID="691c1e7c-1995-416c-92a5-c536f215841c" SourceId="1" SourceUrl="http://staging.dev.virtualearth.net/webservices/v1/metadata/imageryservice/ImageryService.xsd" />
+    <MetadataFile FileName="ImageryService51.xsd" MetadataType="Schema" ID="d083a718-5e12-4d82-9a8c-9cf02b467279" SourceId="1" SourceUrl="http://staging.dev.virtualearth.net/webservices/v1/metadata/imageryservice/ImageryService5.xsd" />
+    <MetadataFile FileName="ImageryService21.xsd" MetadataType="Schema" ID="54f222f9-0ee3-4e9c-8b46-f88c73c66a4e" SourceId="1" SourceUrl="http://staging.dev.virtualearth.net/webservices/v1/metadata/imageryservice/ImageryService2.xsd" />
+    <MetadataFile FileName="ImageryService.wsdl" MetadataType="Wsdl" ID="17726f5a-e069-411d-9c86-855af0208242" SourceId="1" SourceUrl="http://staging.dev.virtualearth.net/webservices/v1/metadata/imageryservice/imageryservice.wsdl" />
+    <MetadataFile FileName="ImageryService41.xsd" MetadataType="Schema" ID="4f4b1055-c715-42a7-8028-ec0f074663e5" SourceId="1" SourceUrl="http://staging.dev.virtualearth.net/webservices/v1/metadata/imageryservice/ImageryService4.xsd" />
+    <MetadataFile FileName="ImageryService11.xsd" MetadataType="Schema" ID="ff5e6c9a-3bce-4e79-9e51-f70e84a526f7" SourceId="1" SourceUrl="http://staging.dev.virtualearth.net/webservices/v1/metadata/imageryservice/ImageryService1.xsd" />
+  </Metadata>
+  <Extensions>
+    <ExtensionFile FileName="configuration91.svcinfo" Name="configuration91.svcinfo" />
+    <ExtensionFile FileName="configuration.svcinfo" Name="configuration.svcinfo" />
+  </Extensions>
+</ReferenceGroup>

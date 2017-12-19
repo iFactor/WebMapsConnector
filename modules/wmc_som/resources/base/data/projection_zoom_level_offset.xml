@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="windows-1252" standalone="yes"?>
+<serial_xml_thing format="1">
+	<keyed class="sw:property_list" size="2">
+		<entry key="uk_british_national_grid">
+			<number>-1</number>
+		</entry>
+		<entry key="usa_arizona_central_nad83">
+			<number>-1</number>
+		</entry>
+	</keyed>
+</serial_xml_thing>

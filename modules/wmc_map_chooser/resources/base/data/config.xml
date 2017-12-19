@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="windows-1252" standalone="yes"?>
+<config>
+	<plugins>
+		<plugin name="wmc_map_chooser" class_name="wmc_map_chooser"/>
+	</plugins>
+</config>

@@ -1,0 +1,61 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+def_slotted_exemplar(:spatialstream_dataset,
+		    {},
+		    {:wmc_dataset})
+$
+_pragma(classify_level=advanced, usage={redefinable})
+## DATASET_NAME : symbol
+##
+## the name of the WMC Dataset.  This is necessary to link the
+## WMC Dataset's SOC definition with a suitable
+## transient_dataset.DATASET_INSTANCE_METADATA definition.
+spatialstream_dataset.define_shared_constant(:DATASET_NAME,
+	:spatialstream_dataset,
+	_false)
+$
+_pragma(classify_level=advanced, topic={universal_rwo}, usage={subclassable})
+_method spatialstream_dataset.max_zoom_level(a_collection)
+	
+	_return 19
+_endmethod
+$
+_pragma(classify_level=advanced, topic={universal_rwo}, usage={subclassable})
+_method spatialstream_dataset.min_zoom_level(a_collection)
+	
+	_return 16
+_endmethod
+$
+_pragma(classify_level=basic)
+_method spatialstream_dataset.add_collection(name,a_collection)
+	## 
+	##
+	_super.add_collection(name,a_collection)
+
+	_if name _is :spatialstream_parcel
+	_then
+		a_collection.descriptor.record_exemplar << spatialstream_parcel 
+	_endif
+_endmethod
+$

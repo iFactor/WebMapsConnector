@@ -1,0 +1,480 @@
+#% text_encoding = cp1252
+########################################################################
+##
+## Last Saved Time-stamp: <2007-08-29 15:55:58 brad.sileo>
+##
+## Created By: Brad Sileo
+## Date: 07-18-2005
+## Copyright 2005 Brad Sileo
+##
+## This file is part of Magik Components for SWAF.
+##
+##     Magik Components for SWAF is free software; you can redistribute it and/or modify
+##     it under the terms of the GNU General Public License as published by
+##     the Free Software Foundation; either version 2 of the License, or
+##     (at your option) any later version.
+##
+##     Magik Components for SWAF is distributed in the hope that it will be useful,
+##     but WITHOUT ANY WARRANTY; without even the implied warranty of
+##     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+##     GNU General Public License for more details.
+##
+##     You should have received a copy of the GNU General Public License
+##     along with Magik Components for SWAF; if not, write to the Free Software
+##     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+##
+########################################################################
+_package mclib
+
+_pragma(classify_level=basic)
+##
+## This class allows you to generate an HTTP request and get
+## back the results. It uses TCP/IP sockets directl;y in Magik,
+## so no outside ACP is required.
+## To use this, create an instance of http_request, connect()
+## it to get back an http_response.
+##  Something like this:
+##
+##    hr << mclib:http_request.new(_unset,_unset,
+##                               :server,"www.psu.edu"
+##                               :port, 80,
+##                               :path,"/index.html")
+##
+##    resp << hr.connect()
+##
+##    resp.smart_result()  <-- will attempt to create string,
+##                             simple_xml_document, or image results.
+##    resp.show_header() to see the response details.
+##
+## ----------------------------
+##  URL Parsing:
+##  There is also basic URL processing support:
+##    hr << mclib:http_request.new_from_url("http://www.psu.edu:80/index.html")
+##
+## ----------------------------
+##    GET DATA - (AKA Query strings:)
+## 
+## To pass along data with the request such as form results,
+## etc., create a property list and pass it to
+##   set_request_properties()
+##     hr.set_request_properties(:property_list.new_with(
+##                                          :name1,"value",
+##                                          :name2,34))
+## The names and values will be automatically URI-encoded
+## before being sent.
+##
+## ----------------------------
+##
+##    AUTHENTICATION:
+## There is also support for the simple BASIC authentication
+## scheme.  To use this, set the username and password
+## properties. The values will be base64 encoded and sent along
+## with the request.  There is no functionality in this layer
+## for handling a 401 response by sending the authorisation. It
+## is assuemd that the user will send a request and react
+## appropriatly to the response code by adding authorisation as
+## needed and sending a new request.
+##
+## ----------------------------
+## Currently, only the HTTP GET method is supported.  This
+## code is HTTP/1.0 compliant, at best, and really not even that.
+##
+def_slotted_exemplar(:http_request,
+                      {		      },
+		      {:sw_component})
+$
+
+_pragma(classify_level=basic)
+## FUll name of the server to connect to.
+http_request.define_property(:server,:string,
+				 "Name of the server to connect to",
+				 _true,_true,"localhost")
+$
+_pragma(classify_level=basic)
+## Port number to connect on.
+http_request.define_property(:port,:integer,
+				 "Port to connect to",
+				 _true,_true,80)
+$
+_pragma(classify_level=basic)
+# The path on the server for the request
+http_request.define_property(:path,:string,
+				 "Path to request",
+				 _true,_true,_unset)
+$
+_pragma(classify_level=basic)
+# Holds the URI-encoded query request for after the "?" on the
+# GET request
+http_request.define_property(:request_properties,:string,
+				 "A properties string to include with the request, already url_encoded",
+				 _true,_true,_unset)
+$
+_pragma(classify_level=basic)
+http_request.define_property(:username,:string,
+				 "The username to send with the request",
+				 _true,_true,_unset)
+$
+_pragma(classify_level=basic)
+http_request.define_property(:password,:string,
+				 "The password to send with the request",
+				 _true,_true,_unset)
+$
+_pragma(classify_level=basic)
+http_request.define_property(:authorization_type,:string,
+				 "The type of HTTP authorization.",
+				 _true,_true,"Basic")
+$
+_pragma(classify_level=basic)
+http_request.define_property(:http_method,:symbol,
+				 "The HTTP method - can currently be :get or :post.",
+				 _true,_true,:get)
+$
+_pragma(classify_level=basic)
+http_request.define_property(:post_content_type,:string,
+				 "The type of data being included in a POST request.",
+				 _true,_true,"application/x-magik-data")
+$
+_pragma(classify_level=basic)
+http_request.define_property(:post_data,:string,
+				 "The data to be posted with a POST request.",
+				 _true,_true,"")
+$
+
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_request.new_for_url(name,framework, a_url)
+	## 
+	## 
+	##
+
+	# (06-29-2005 Brad Sileo): created.
+	(protocol,server, port, path) << _self.parse_url(a_url)
+	>> _self.new(name,framework,
+		  :server, server,
+		  :port, port,
+		  :path,path)
+_endmethod
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_request.parse_url(a_url)
+	## returns the server, port(default 80) and path parts of a URL
+	## 
+	##
+
+	# (07-15-2005 Brad Sileo): created.
+	protocol << a_url.slice(1,a_url.index_of(%:)-1)
+	server_and_port << a_url.slice(a_url.index_of_seq("//")+2,
+				       a_url.index_of(%/,a_url.index_of_seq("//")+2).default(a_url.size+1)-1)
+	
+	_if (col_idx << server_and_port.index_of(%:)) _isnt _unset 
+	_then
+		server << server_and_port.slice(1,col_idx-1)
+		port << server_and_port.slice_to_end(col_idx+1)
+	_else
+		server << server_and_port
+		port << 80
+	_endif
+	path_idx << a_url.index_of(%/,a_url.index_of_seq("//")+2)
+	_if path_idx _is _unset 
+	_then
+		path << "/"
+	_else
+		path << a_url.slice_to_end(path_idx)
+	_endif 
+	>> protocol, server, port, path
+_endmethod
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_request.connect()
+	## Connects and returns the results.
+	## 
+	##
+
+	# (06-29-2005 Brad Sileo): created.
+	add << _self.server_address
+	conn << tcpip_connection.new(add, _self.port)
+				 #:input_class,external_text_input_stream)
+	_protect
+		_self.send_request(conn)
+		a_http_resp << _self.get_response(conn)
+	_protection
+		conn.close()
+	_endprotect
+	>> a_http_resp
+_endmethod
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_request.get_response(conn)
+	## get a response from CONN
+	## 
+	##
+
+	# (06-29-2005 Brad Sileo): created.
+	>> _self.http_response_exemplar.new_for(_self.name,_self,conn.input)
+_endmethod
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_request.http_response_exemplar
+	## Returns the object to process the response - some type of
+	## http_response object
+	## 
+	##
+
+	# (06-30-2005 Brad Sileo): created.
+	>> http_response
+_endmethod
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_request.server_address
+	## Lookup my serer and return the host address for it.
+	## 
+	##
+
+	# (06-29-2005 Brad Sileo): created.
+	>> system.get_host_by_name(_self.server)[1]
+_endmethod
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_request.send_request(conn)
+	## Sends my get request to conn, a tcp_connection
+	## 
+	##
+
+	# (06-29-2005 Brad Sileo): created.
+	st << conn.output
+	st.put_ascii_chars(_self.header_string())
+_endmethod
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_request.header_string()
+	## returns the string for a get request on me
+	## 
+	##
+
+	# (06-29-2005 Brad Sileo): created.
+	pa << _self.path_with_args
+	_if _self.http_method _is :get
+	_then
+		res << write_string("GET ",pa," HTTP/1.0",%newline)
+	_elif _self.http_method _is :post
+	_then
+		res << write_string("POST ",pa," HTTP/1.0",%newline)
+	_endif 
+	res +<< write_string("Host: ",_self.server,%:,_self.port,%newline)
+	# No support for persistent connections yet.
+	res +<< write_string("Connection: close",%newline)
+	res +<< write_string("User-Agent: MagikHTTP/1.0",%newline)
+	res +<< _self.authentication_header()
+	_if _self.http_method _is :post
+	_then
+		res +<< _self.post_string()
+	_else
+		res +<< write_string(%newline)
+	_endif 
+	#debug write(res)
+	>> res
+_endmethod
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_request.post_string()
+	## Returns my POST string, which includes the end of the
+	## header, a newline, and the post data.
+	## 
+	##
+
+	# (10-22-2005 Brad Sileo): created.
+	res << ""
+	pd << _self.post_data
+	res +<< write_string("Content-Type: ",_self.post_content_type,%newline)
+	res +<< write_string("Content-Length: ",pd.size,%newline)
+	res +<< write_string(%newline)
+	res +<< pd
+	>> res
+_endmethod
+$
+
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_request.authentication_header()
+	## returns a string which represents the header lines needed
+	## for authentication with this request, if any.  
+	## 
+	##
+
+	# (07-13-2005 Brad Sileo): created.
+	_if _self.username _is _unset 
+	_then
+		_return ""
+	_endif
+	res << write_string("Authorization: ",
+			    _self.authorization_type,
+			    %space,
+			    _self.base64_encode(
+				    write_string(
+					    _self.username,%:,
+					    _self.password.default(""))),
+			    %newline
+	       )
+
+	>> res
+_endmethod
+$
+
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_request.base64_encode(a_string)
+	## returns the base64 encoded version of A_STRING
+	## 
+	##
+
+	# (07-13-2005 Brad Sileo): created.
+	b64 << base64_converter.new_binary_to_text()
+	vec << byte_vector.new(a_string.size)
+	_for i,a_char _over a_string.fast_keys_and_elements()
+	_loop
+		vec[i] << a_char.value
+	_endloop
+	>> b64.translate(vec)
+
+_endmethod
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_request.path_with_args
+	## Returns my get path with any arguments appended
+	## and charcters encoded for HTTP
+	##
+
+	# (06-30-2005 Brad Sileo): created.
+	pa << _self.path.default("/")
+	res << _if (props << _self.request_properties) _is _unset 
+	   _then 
+		   >> pa
+	   _else
+		   >> write_string(pa,"?",props)
+	       _endif
+	>> res
+_endmethod
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_request.set_request_properties(_gather keys_and_vals)
+	## Set my GET request properties to keys_and_vals
+	## 
+	##
+
+	# (06-30-2005 Brad Sileo): created.
+	pl << property_list.new_with(_scatter keys_and_vals)
+	str << internal_text_output_stream.new()
+	_for a_key,a_val _over pl.fast_keys_and_elements()
+	_loop
+		str.write(_self.url_encode(a_key.write_string),%=,_self.url_encode(a_val.write_string))
+		str.write(%&)
+		put? << _true 
+	_endloop
+	_if put? _is _true 
+	_then
+		str.unput()
+	_endif 
+	>> _self.request_properties << str.string
+_endmethod
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_request.url_encode(a_string)
+	## Returns A_STRING URL encoded
+	## 
+	##
+
+	# (06-30-2005 Brad Sileo): created.
+	result <<  ""
+	# Not encoded 
+	ok << {}
+	# Always encoded:
+	bad << {%+,%=}
+	_for i,char _over a_string.keys_and_elements()
+	_loop
+		_if char _is %space
+		_then
+			result << write_string(result,%+)
+		# Failry aggressive encoding - all non charcters!
+		_elif (_not char.letter_or_numeric? _andif
+		       _not (ok.includes?(char))) _orif
+		      bad.includes?(char)
+		_then
+			val << char.value
+			hex << number2hex(val)
+			result << "".concatenation(result,write_string(%%,hex))
+		_else
+			result << write_string(result,char)
+		_endif
+	_endloop
+	>> result
+_endmethod
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_request.filename
+	## returns the name of the file requested in my path
+	## 
+	##
+
+	# (06-30-2005 Brad Sileo): created.
+	>> _if (pa << _self.path) _isnt _unset
+	_then
+		>> system.pathname_components(pa)
+	_endif 
+_endmethod
+$
+
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_request.show_on(a_stream)
+	## 
+	## 
+	##
+
+	# (06-30-2005 Brad Sileo): created.
+	a_stream.write(_self.class_name,
+		       %(,%",
+		       "http://",
+		       _if _self.username _is _unset
+		       _then >> ""
+		       _else >> _self.username + %: +
+			     %*.repeated(_self.password.size) + %@
+		       _endif, 
+		       _self.server,
+		       %:,_self.port
+		 )
+	_if (rp << _self.path_with_args) _isnt _unset 
+	_then
+		
+		_if rp.size > 40
+		_then
+			rp << write_string(rp.slice(1,20),"...")
+		_endif
+		a_stream.write(rp)
+	_endif
+	a_stream.write(%",%))
+_endmethod
+$
+
+_pragma(classify_level=basic, usage={redefinable})
+_method http_request.smart_result(_optional content_type_override)
+	## COnnect and get the result of me, all in one step.  
+	## 
+	##
+
+	# (08-29-2007 Brad Sileo): created.
+	res << _self.connect()
+	>> res.smart_result(content_type_override)
+_endmethod
+$

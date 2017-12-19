@@ -1,0 +1,10 @@
+#% text_encoding = iso8859_1
+
+sw_changes
+pseudo_bounding_box
+labelled_world_mixin
+pseudo_world
+load_wmc_som
+user_changes
+fix_instance_metadata
+

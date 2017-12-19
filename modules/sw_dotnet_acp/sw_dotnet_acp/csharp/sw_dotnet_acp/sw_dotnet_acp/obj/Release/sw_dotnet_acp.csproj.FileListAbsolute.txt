@@ -1,0 +1,7 @@
+C:\Users\brad.sileo\Programming\SF\mclib_working\core_40_swaf\modules\sw_dotnet_acp\csharp\sw_dotnet_acp\sw_dotnet_acp\bin\Release\sw_dotnet_acp.exe
+C:\Users\brad.sileo\Programming\SF\mclib_working\core_40_swaf\modules\sw_dotnet_acp\csharp\sw_dotnet_acp\sw_dotnet_acp\bin\Release\sw_dotnet_acp.pdb
+C:\Users\brad.sileo\Programming\SF\mclib_working\core_40_swaf\modules\sw_dotnet_acp\csharp\sw_dotnet_acp\sw_dotnet_acp\bin\Release\sw_dotnet_lib_acp.dll
+C:\Users\brad.sileo\Programming\SF\mclib_working\core_40_swaf\modules\sw_dotnet_acp\csharp\sw_dotnet_acp\sw_dotnet_acp\bin\Release\sw_dotnet_lib_acp.pdb
+C:\Users\brad.sileo\Programming\SF\mclib_working\core_40_swaf\modules\sw_dotnet_acp\csharp\sw_dotnet_acp\sw_dotnet_acp\obj\Release\ResolveAssemblyReference.cache
+C:\Users\brad.sileo\Programming\SF\mclib_working\core_40_swaf\modules\sw_dotnet_acp\csharp\sw_dotnet_acp\sw_dotnet_acp\obj\Release\sw_dotnet_acp.exe
+C:\Users\brad.sileo\Programming\SF\mclib_working\core_40_swaf\modules\sw_dotnet_acp\csharp\sw_dotnet_acp\sw_dotnet_acp\obj\Release\sw_dotnet_acp.pdb

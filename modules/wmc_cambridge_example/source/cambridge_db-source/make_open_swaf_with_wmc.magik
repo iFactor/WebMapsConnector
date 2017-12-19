@@ -1,0 +1,95 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+#
+# Build and save the closed image for the Cambridge Database,
+# then quit.
+#
+# Must be run by 'load_file()'
+# Must be located 'next to' the modules directory
+#
+
+_block
+	smallworld_product.add_product(system.pathname_up(!source_file!, 2))
+	sw_module_manager.load_module("wmc_cambridge_example")
+	sw_module_manager.load_module("cam_db_image_open_swaf")
+	# the :cam_db_image_open_swaf module code removes all
+	# non-cambridge application definitions so we need to load the
+	# wmc_cambridge_example module one more time to re-register the
+	# WMC Cambridge application.  But we still **also** need to load
+	# the ve_cambridge_example module first so that the
+	# wmc_dataset_manager class is available when the SOC is opened
+	# by cam_db_image_open_swaf.
+	sw_module_manager.load_module("wmc_cambridge_example",_unset,:force_reload?,_true)
+_endblock
+$
+
+_block
+	_local image_buildtime << date_time_now()
+
+	_local images_dir << system.pathname_down(
+				 system.pathname_up(!source_file!, 2),
+				 "images"
+				    )
+	
+	# Define the image file that will be run - this is merely a
+	# redirction file which will point to the real image.
+	_local image_name << "open_swaf.msf"
+
+	# Define the image file we actually want to save to.
+	_local internal_image_name << "open_swaf_main.msf"
+	
+	##
+	## For an image which will NOT autostart
+	## change argument to :startup_proc below
+	## to _unset 
+	##
+	##
+
+	# Call garbage collect a couple of times so we do not save more
+	# than is needed.
+	system.gc(_true )
+	system.gc(_true )
+
+	save_image_startup(system.pathname_from_components(internal_image_name,
+							   images_dir),
+				:redirection_file,
+				system.pathname_from_components(image_name,
+								images_dir),
+				:cache_pages, :calculate,
+				:startup_proc,
+				_proc @start_with_cli()
+				startup()
+
+					# Enable CLI
+					_return _true
+				_endproc,
+				:quit?, _true)
+	
+	#
+	# This code will be run every time the image is opened
+	#
+	
+	write("Cambridge Database Open Image. Built on ", image_buildtime)
+
+_endblock 
+$

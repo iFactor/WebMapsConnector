@@ -1,0 +1,210 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+# ************************************************************ 
+#							       
+# (c) 2005-2006 General Electric Company. All Rights Reserved. 
+#							       
+# ************************************************************ 
+_package sw
+
+_pragma(classify_level=advanced)
+##
+## A world that can be labelled with a Coordinate System.
+##
+## A geographic world is usually georeferenced (i.e. it is
+## labelled with a coordinate system), though this georeference
+## may be implicit (.labelled? is then _false).
+##
+## Non geographics worlds such as drawings and internals 
+## are generally not georeferenced. 
+##
+## Labelled worlds understand all world protocols plus :
+##    .coordinate_system
+##    .unit
+##    .unit_name
+##    .unit_factor
+##
+## All subclasses must provide the following protocols :
+##    .unit_factor
+##    .coordinate_system
+##    .cached_transforms
+##    .cached_transforms<<
+## (the latter two best implemented as a private writable slot)
+##
+def_mixin(:labelled_world_mixin,
+	  {:world_mixin})
+$
+
+
+_pragma(classify_level=basic)
+_method labelled_world_mixin.labelled?
+
+	## True if _self is actually labelled with a coordinate system
+
+	>> _self.coordinate_system _isnt _unset
+_endmethod
+$
+
+
+_pragma(classify_level=restricted)
+_method labelled_world_mixin.int!world_transform
+
+	## The transform from self space to application space.
+	##
+	## This transform is applied to coordinates as they are read
+	## from the datastore. The application coordinate system is
+	## defined by dynamic !current_coordinate_system!.
+
+	# Case: In cache
+	_if (trans << _self.cached_transform(!current_coordinate_system!)) _isnt _unset
+	_then
+		_return trans
+
+	# Case: No transform
+	_elif !current_coordinate_system! _is _unset _orif
+	      (cs << _self.coordinate_system) _is _unset
+	_then
+		_return  transform.identity_transform
+
+	# Case: First time
+	_else
+		# Prevent cache becoming ridiculously large
+		_if _self.cached_transforms.size > 9
+		_then
+			_self.uncache_transforms()
+		_endif
+
+		# We don't need to defend against stale records, as
+		# .cached_transform() will have verified there are none
+		# there.
+		#
+		trans << transform.new_converting_cs_to_cs(_self.coordinate_system,
+							   !current_coordinate_system!)
+		_self.cache_transform_for(!current_coordinate_system!,trans)
+		
+		_return trans
+	_endif
+	
+_endmethod
+$
+
+
+_pragma(classify_level=restricted)
+_private _method labelled_world_mixin.cached_transform(a_cs)
+	##
+	## Returns a transform for A_CS if one is cached. 
+	##
+
+	_if _self.cached_transforms _is _unset
+	_then
+		# We use an equaslity_property_list as this is efficient and we
+		# need equality as we may be caching ds_coordinate_systems.
+		#
+		_self.cached_transforms << equality_property_list.new(10)
+	_endif
+
+	# Defend against a ds CS going away - if that happens just junk
+	# everything and start again (it will be rare!)
+	#
+	_try
+		_return _self.cached_transforms[a_cs]
+	_when db_stale_handle
+	      _self.cached_transforms.empty()
+	_endtry 
+_endmethod
+$
+
+
+_pragma(classify_level=basic)
+_method labelled_world_mixin.unit
+
+	## The length unit used by _self.
+
+	_return unit_manager.dimensionality(:length).unit_for_factor(_self.unit_factor)
+_endmethod 
+$
+
+
+_pragma(classify_level=basic)
+_method labelled_world_mixin.unit_name
+
+	## The name of the unit used by _self, as a symbol (e.g. :mm)
+
+	_return _self.unit.name
+_endmethod 
+$
+
+
+_pragma(classify_level=deprecated, usage={external})
+_method labelled_world_mixin.world_units
+
+	## -------Deprecated------
+	## Reason     : Not part of the public API
+	## Use instead: .unit_name, see also .unit
+	## Action     : Restricted at next release.
+	## -----------------------
+	##
+	## Returns the name of the units system used by _self.
+
+	>> _self.unit_name
+_endmethod 
+$
+_pragma(classify_level=restricted)
+_method labelled_world_mixin.note_change(who, aspect _gather data)
+	##
+	## Whenever one of the coordinate systems in the cache has its
+	## reference origin changed, we recalculate the cached
+	## transforms. 
+	## 
+	_if aspect _is :reference_origin
+	_then
+		(new_tr) << (_scatter data)
+		_self.cached_transforms[who] << _self.cached_transforms[who].multiply(new_tr)
+	_endif
+_endmethod
+$
+
+_pragma(classify_level=restricted)
+_private _method labelled_world_mixin.cache_transform_for( a_cs ,a_transform)
+	## 
+	## Caches the transform A_TRANSFORM for the coordinate system
+	## A_CS and makes self dependent on it for aspect :reference_origin
+	##
+	_self.cached_transforms[!current_coordinate_system!] << a_transform
+	!current_coordinate_system!.add_dependent(_self,:reference_origin)
+_endmethod
+$
+
+_pragma(classify_level=restricted)
+_private _method labelled_world_mixin.uncache_transforms()
+	##
+	## Uncaches the transforms, removing self as dependent as
+	## well. 
+	## 
+	_for k,el _over _self.cached_transforms.keys_and_elements()
+	_loop
+		k.remove_dependent(_self)
+	_endloop
+	_self.cached_transforms.empty()
+_endmethod
+$
+

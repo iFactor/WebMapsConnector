@@ -1,0 +1,9 @@
+canvas_comparer	1
+
+description
+	dynamic comparison of two snapshots from the same canvas.
+end
+
+requires
+end
+

@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--  gui.xml for the SWAF Professional application  -->
+<gui base="cam_db_swaf_professional_application.gui">
+    <!-- WORK AREA -->
+
+    <toolbar name="ve">
+	<action name="wmc_map_chooser_plugin.show_hide_map_chooser"/>
+	<action name="ve.toggle_dataset"/>
+	<action name="ve.road_view"/>
+	<action name="ve.road_transparent_view"/>
+	<action name="ve.aerial_view"/>
+	<action name="ve.label_view?"/>
+	<action name="ve.bing_traffic"/>
+	<action name="ve.query"/>
+	<action name="ve.geocode"/>
+	<action name="ve.reverse_geocode"/>
+	<action name="ve.get_metadata"/>
+	<action name="ve.show_in_web_browser"/>
+	<action name="ve.show_birds_eye_in_web_browser"/>
+	<action name="ve.about"/>
+	<section/>
+	<action name="wmc_route_finder.activate_dialog"/>
+	<section/>
+	<action name="ve.weatherbug_toggle_radar"/>
+	<action name="weather_map_animator.activate_dialog"/>
+	<section/>
+	<pulldown mode="simple" caption="extras">
+	    <submenu name="acp">
+	    	<action name="ve.stop_acp"/>
+	    </submenu>
+	    <submenu name="birdseye">
+	    	<action name="ve.rotate_map_north"/>
+	    	<action name="ve.rotate_map_south"/>
+		<section/>
+	    	<action name="ve.tilt_map"/>
+		<section/>
+	    	<action name="ve.adjust_birdseye_shift"/>
+	    	<action name="ve.adjust_birdseye_shift_half_trail"/>
+		<section/>
+	    	<action name="ve.save_birdseye_shift_cache"/>
+	    	<action name="ve.load_birdseye_shift_cache"/>
+	    </submenu>
+	    <submenu name="osm_caption">
+	    	<action name="ve.launch_josm"/>
+	    	<action name="ve.get_osm_data"/>
+	    	<action name="ve.get_osm_streets_only"/>
+	    	<action name="ve.launch_osm"/>
+	    	<action name="ve.launch_mapzen"/>
+	    </submenu>
+	</pulldown>
+	<section/>
+	<action name="ve.get_spatialstream_parcel_data"/>
+	<action name="canvas_comparer_plugin.activate_dialog"/>
+    </toolbar>
+
+    <dock name="top">
+	<!-- free text search -->   
+	<toolbar name="advanced_find"/>
+	<toolbar name="navigation"/>
+	<toolbar name="objects"/>
+	<section/>
+	<toolbar name="interaction"/>
+	<toolbar name="refresh"/>
+	<toolbar name="view"/>
+	<section/>
+	<toolbar name="ve"/>
+    </dock>
+
+    <!-- WORK AREA -->
+
+    <work_area>
+        <paned_window side_by_side="yes">
+	    <plugin plugin_name="document_manager" stretch="1">
+                <document plugin_name="maps" map_type="geographic" />
+            </plugin>
+
+            <paned_window side_by_side="no">
+		<!-- note: role viewport_mapping means Layouts is allowed to build panes inside this tab -->
+		<tab_box role="viewport_mapping">
+		    <!-- these roles are used by the pane_manager to allow 
+			 the user to switch the visibility of these tabs -->
+		    <plugin plugin_name="object_control"           role="object_control"/>
+		    <plugin plugin_name="editor_manager"           role="editor_manager"/>
+		    <plugin plugin_name="wmc_map_chooser"          role="wmc_map_chooser"  hidden="true"/>
+		</tab_box>
+
+		<tab_box role="viewers">
+                    <plugin plugin_name="spatial_context_viewer">
+                        <properties>
+                            <property name="width" value="300"/>
+                            <property name="height" value="300"/>
+                        </properties>
+                    </plugin>
+		    <plugin plugin_name="overviewer">
+                        <properties>
+                            <property name="width" value="300"/>
+                            <property name="height" value="300"/>
+                        </properties>
+		    </plugin>
+		    <plugin plugin_name="google_streetview"/>
+		</tab_box>
+            </paned_window>
+        </paned_window>
+    </work_area>
+</gui>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="windows-1252" standalone="yes"?>
+<config>
+	<plugins>
+		<plugin name="canvas_comparer" class_name="canvas_comparer"/>
+	</plugins>
+</config>

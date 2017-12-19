@@ -1,0 +1,9 @@
+additions/
+changes/
+wmc_map_chooser
+wmc_map_chooser_2
+wmc_map_chooser_framework
+wmc_map_chooser_framework_2
+wmc_map_chooser_plugin
+wmc_map_chooser_plugin_2
+glue/

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="windows-1252" standalone="yes"?>
+<config>
+	<plugins>
+		<plugin name="ve_som_about_dialog" class_name="ve_som_about_dialog"/>
+	</plugins>
+</config>

@@ -1,0 +1,10 @@
+google_streetview	1
+
+description
+	Supports Google Street View in an embedded Smallworld canvas
+end
+
+requires
+	wmc_som
+end
+

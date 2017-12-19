@@ -1,0 +1,155 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+def_slotted_exemplar(:mbtiles_dataset,
+		    {
+			    {:sqlite_db_lookup,_unset}
+		    },
+		    {:wmc_dataset})
+$
+_pragma(classify_level=advanced, usage={redefinable})
+## DATASET_NAME : symbol
+##
+## the name of the WMC Dataset.  This is necessary to link the
+## WMC Dataset's SOC definition with a suitable
+## transient_dataset.DATASET_INSTANCE_METADATA definition.
+mbtiles_dataset.define_shared_constant(:DATASET_NAME,
+	:mbtiles_dataset,
+	_false)
+$
+_pragma(classify_level=advanced, usage={redefinable})
+_method mbtiles_dataset.init(_gather args)
+
+	.sqlite_db_lookup << property_list.new()
+	
+	_return _super.init(_scatter args)
+_endmethod
+$
+
+
+_pragma(classify_level=advanced, topic={universal_rwo}, usage={subclassable})
+_method mbtiles_dataset.max_zoom_level(a_collection)
+	
+	_return 21
+_endmethod
+$
+_pragma(classify_level=advanced, topic={universal_rwo}, usage={subclassable})
+_method mbtiles_dataset.min_zoom_level(a_collection)
+	
+	_return 1
+_endmethod
+$
+
+_pragma(classify_level=advanced, topic={universal_rwo}, usage={subclassable})
+_private _method mbtiles_dataset.connect( connect_spec )
+	## 
+	## Subclass this method to connect to the actual database,
+	## create the collections and populate the .collections,
+	## and .field_types slots.
+	##
+	## CONNECT_SPEC is a connect spec in the form specified by the
+	## dataset manager's .default_connect_spec, which should
+	## contain sufficient information for the connection to be
+	## made.
+	##
+	## This default implementation calls self.open_collections()
+	##
+	## Nothing returned.
+	##
+
+	_self.configure_dataset_instance_metadata(connect_spec)
+	
+	_super.connect(connect_spec)
+
+_endmethod
+$
+_pragma(classify_level=advanced, topic={universal_rwo}, usage={subclassable})
+_method mbtiles_dataset.configure_dataset_instance_metadata(connect_spec)
+	## configure_dataset_instance_metadata(property_list CONNECT_SPEC) : _unset
+	##
+	## modifies self's DATASET_INSTANCE_METADATA based on the
+	## mbtiles referenced in CONNECT_SPEC
+
+	_local config_file << system.canonical_path_string(connect_spec[:config_file].default("").substitute_environment_variables())
+
+	_if _not system.file_exists?(config_file)
+	_then
+		condition.raise(:file_does_not_exist,:filename,config_file)
+	_endif
+
+	_local sql_proc << _proc(db_file_name,field_name)
+				   
+				   _local sql << write_string("SELECT value FROM metadata where name = '",field_name,"'")
+				   _local str << if_ve_acp.run_sqlite_command(db_file_name,sql)
+				   _local value << str.get_line()
+				   str.close()
+				   _return value 					  
+			   _endproc 
+
+	_local metadata << _self.DATASET_INSTANCE_METADATA[_self.name] << _self.DATASET_INSTANCE_METADATA[_self.DATASET_NAME].copy()
+	.sqlite_db_lookup.empty()
+	
+	_local filename
+	_local config_file_stream << external_text_input_stream.new(config_file)
+	_protect
+		_loop
+			_if (filename << config_file_stream.get_line()) _is _unset 
+			_then
+				_leave
+			_endif
+
+			_if system.file_exists?(filename)
+			_then
+				_local external_name << sql_proc(filename,:name)
+				_local description << sql_proc(filename,:description)
+
+				_local internal_name << external_name.convert_to_non_escape_string().as_symbol()
+
+				.sqlite_db_lookup[internal_name] << filename
+
+				metadata[:collections][internal_name] << 
+					property_list.new_with(
+						:fields,property_list.new_with(:id, {:physical, :ds_int, :key, _unset,:external_name, "Object ID"},
+									       :tile, {:geometry, :wmc_tile,:nonman}
+								      ),
+						:exemplar,mbtiles_rwo_record,
+						:external_name,external_name
+						      )
+				
+				
+			_endif
+		_endloop
+	_protection
+		config_file_stream.close()
+	_endprotect
+
+
+_endmethod
+$
+_pragma(classify_level=advanced, topic={universal_rwo}, usage={subclassable})
+_method mbtiles_dataset.sqlite_db_filename(collection_name)
+	
+	_return .sqlite_db_lookup[collection_name]
+_endmethod
+$
+

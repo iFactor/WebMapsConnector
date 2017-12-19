@@ -1,0 +1,13 @@
+geocode_us << _proc(_optional addr)
+	hr << mclib:http_request.new(:test,_unset,
+				     :server,"geocoder.us",
+				     :port,80,
+				     :path,"/service/rest/geocode")
+	pl << property_list.new_with(:|address|,addr.default("1600+Pennsylvania+Ave,+Washington+DC"))
+	hr.set_request_properties(_scatter pl)
+	resp << hr.connect()
+	show(hr)
+	show(resp)
+	write(resp.smart_result())
+     _endproc
+$

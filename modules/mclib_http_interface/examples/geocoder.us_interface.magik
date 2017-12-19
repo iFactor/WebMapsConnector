@@ -1,0 +1,28 @@
+##
+## This example shows how you can use the HTTP connection to
+## geocode any US address using the geocode.us service.
+## Please note that a commercial license is required for use of
+## this service in commercial applications.
+
+## Address is a string like "1600 Pennsylvania Ave, Washington DC")
+_global geocode_address << _proc(address)
+				   hr << mclib:http_request.new(:test,_unset,
+								:server,"geocoder.us",
+								:port,80,
+								:path,"/service/rest/geocode")
+				   pl << property_list.new_with(:|address|,address)
+				   hr.set_request_properties(_scatter pl)
+				   resp << hr.connect()
+				   xml << resp.smart_result()
+				   cs << gis_program_manager.cached_dataset(:gis).collections[:sw_gis!coordinate_system].at(:longlat)
+				   wr << pseudo_world.new(cs)
+				   res << set.new()
+				   _for a_elem _over xml.elements[1].elements_matching_name("geo:Point")
+				   _loop
+					   lat << a_elem.element_matching_name("geo:lat").xml_contents.as_number()
+					   long << a_elem.element_matching_name("geo:long").xml_contents.as_number()
+					   res.add(pseudo_point.new_for_world(coordinate.new(long,lat),wr))
+				   _endloop
+				   >> res
+			   _endproc 
+$

@@ -1,0 +1,122 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+def_slotted_exemplar(:mapbox_dataset,
+		    {},
+		    {:wmc_dataset})
+$
+_pragma(classify_level=advanced, usage={redefinable})
+## DATASET_NAME : symbol
+##
+## the name of the WMC Dataset.  This is necessary to link the
+## WMC Dataset's SOC definition with a suitable
+## transient_dataset.DATASET_INSTANCE_METADATA definition.
+mapbox_dataset.define_shared_constant(:DATASET_NAME,
+	:mapbox_dataset,
+	_false)
+$
+_pragma(classify_level=advanced, topic={universal_rwo}, usage={subclassable})
+_method mapbox_dataset.max_zoom_level(a_collection)
+	
+	_return 21
+_endmethod
+$
+_pragma(classify_level=advanced, topic={universal_rwo}, usage={subclassable})
+_method mapbox_dataset.min_zoom_level(a_collection)
+	
+	_return 1
+_endmethod
+$
+
+_pragma(classify_level=advanced, topic={universal_rwo}, usage={subclassable})
+_private _method mapbox_dataset.connect( connect_spec )
+	## 
+	## Subclass this method to connect to the actual database,
+	## create the collections and populate the .collections,
+	## and .field_types slots.
+	##
+	## CONNECT_SPEC is a connect spec in the form specified by the
+	## dataset manager's .default_connect_spec, which should
+	## contain sufficient information for the connection to be
+	## made.
+	##
+	## This default implementation calls self.open_collections()
+	##
+	## Nothing returned.
+	##
+
+	_self.configure_dataset_instance_metadata(connect_spec)
+	
+	_super.connect(connect_spec)
+
+_endmethod
+$
+_pragma(classify_level=advanced, topic={universal_rwo}, usage={subclassable})
+_method mapbox_dataset.configure_dataset_instance_metadata(connect_spec)
+	## configure_dataset_instance_metadata(property_list CONNECT_SPEC) : _unset
+	##
+	## modifies self's DATASET_INSTANCE_METADATA based on the
+	## mapbox referenced in CONNECT_SPEC
+
+	_local metadata << _self.DATASET_INSTANCE_METADATA[_self.name] << _self.DATASET_INSTANCE_METADATA[_self.DATASET_NAME].copy()
+
+	_for spec _over connect_spec[:maps].fast_elements()
+	_loop
+		_local external_name << if_ve_acp.get_mapbox_metadata(spec[:account],spec[:handle]).name
+		_local internal_name << write_string(spec[:account],".",spec[:handle]).as_symbol()
+		
+		metadata[:collections][internal_name] << 
+			property_list.new_with(
+				:fields,property_list.new_with(:id, {:physical, :ds_int, :key, _unset,:external_name, "Object ID"},
+							       :tile, {:geometry, :wmc_tile,:nonman}
+						      ),
+				:exemplar,mapbox_rwo_record,
+				:external_name,external_name
+				      )
+	_endloop
+
+
+_endmethod
+$
+_pragma(classify_level=basic)
+_method mapbox_dataset.int!set_external_names()
+	## int!set_external_names() : _unset
+	##
+	## sets the external names for self, all its collections and
+	## their fields.
+
+	_super.int!set_external_names()
+	
+	_local tab_desc
+
+	_local collection_info << _self.DATASET_INSTANCE_METADATA[_self.name][:collections]
+	
+	_for a_collection _over _self.collections.fast_elements()
+	_loop
+		tab_desc << a_collection.descriptor
+
+		tab_desc.external_name << collection_info[a_collection.name][:external_name]
+	_endloop
+	
+_endmethod
+$

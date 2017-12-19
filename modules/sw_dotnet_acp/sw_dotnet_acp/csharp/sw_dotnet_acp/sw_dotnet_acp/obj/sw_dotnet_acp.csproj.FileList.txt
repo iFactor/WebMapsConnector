@@ -1,0 +1,5 @@
+obj\Release\ResolveAssemblyReference.cache
+bin\Release\sw_dotnet_acp.exe
+bin\Release\sw_dotnet_acp.pdb
+obj\Release\sw_dotnet_acp.exe
+obj\Release\sw_dotnet_acp.pdb

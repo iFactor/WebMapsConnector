@@ -1,0 +1,57 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+
+spatialstream_dataset.define_shared_constant(:DATASET_INSTANCE_METADATA,
+	property_list.new_with(
+		spatialstream_dataset.DATASET_NAME,
+		property_list.new_with(
+			:collections, property_list.new_with(
+					      :spatialstream_parcel,
+					      property_list.new_with(
+						      :fields,property_list.new_with(
+								      :apn, {:physical, :extdb_char, :key, 32,:external_name, "APN"},
+								      :fips, {:physical, :extdb_char, :key, 32,:external_name, "FIPS"},
+								      :extent, {:geometry, :simple_area,:man}
+									    ),
+						      :exemplar,spatialstream_parcel,
+						      :external_name,message_handler.new(:spatialstream_parcel).human_string(:self)
+							    ),
+					      
+					      :tile,
+					      property_list.new_with(
+						      :fields,property_list.new_with(:id, {:physical, :ds_int, :key, _unset,:external_name, "Object ID"},
+										     :tile, {:geometry, :wmc_tile,:nonman}
+									    ),
+						      :exemplar,spatialstream_rwo_record,
+						      :external_name,"Tile"
+							    )
+						    ),
+			:world_metadata, property_list.new_with(:name,:gis,
+								:id, 0,
+								:coordinate_system, spatialstream_dataset.MERCATOR_COORDINATE_SYSTEM
+						       )
+			      )
+		      ),_false)
+
+$

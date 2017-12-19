@@ -1,0 +1,9 @@
+map_animator	1
+
+description
+	records and plays back a series of screen snapshots to a map_view
+end
+
+requires
+end
+

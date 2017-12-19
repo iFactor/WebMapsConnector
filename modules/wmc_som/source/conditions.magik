@@ -1,0 +1,85 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package sw
+$
+
+
+_pragma(classify_level=basic)
+## raised in ve_swaf_plugin.get_metadata()
+condition.define_condition(:ve_metadata,:warning,{:lon,:lat,:level_of_detail,:map_type,:from_date,:to_date})
+$
+_pragma(classify_level=basic)
+## raised in ve_swaf_plugin.get_metadata()
+condition.define_condition(:ve_metadata_server_error,:user_error,{:lon,:lat,:level_of_detail,:map_type})
+$
+_pragma(classify_level=basic)
+## raised in if_ve_acp.get_image_metadata_for_lat_long()
+condition.define_condition(:wmc_metadata_vendor_not_supported,:user_error,{:vendor_name})
+$
+_pragma(classify_level=basic)
+## raised in ve_swaf_plugin.reverse_geocode()
+condition.define_condition(:ve_reverse_geocode_server_error,:user_error,{})
+$
+_pragma(classify_level=basic)
+## raised in ve_swaf_plugin.manage_map_view_projections()
+condition.define_condition(:ve_no_mercator_coordinate_system_defined,:user_error,{})
+$
+
+_pragma(classify_level=basic)
+## raised in if_ve_acp.verify_net_framework()
+condition.define_condition(:ve_install_net_framework,:user_error,{:minimum_version,:download_page})
+$
+
+_pragma(classify_level=basic)
+## raised in ve_swaf_plugin.check_for_updates()
+condition.define_condition(:ve_update_connection_error,:user_error,{})
+$
+
+_pragma(classify_level=basic)
+condition.define_condition(:ve_credentials_need_to_be_loaded,:user_error,{})
+$
+
+_pragma(classify_level=basic)
+condition.define_condition(:ve_transaction_mechanism_tampered_with,:user_error,{})
+$
+
+_pragma(classify_level=basic)
+condition.define_condition(:ve_invalid_sw_auth_type,:user_error,{:type,:valid_types})
+$
+_pragma(classify_level=basic)
+condition.define_condition(:ve_current_user_not_sw_auth_validated,:user_error,{})
+$
+_pragma(classify_level=basic)
+condition.define_condition(:ve_invalid_query,:user_error,{})
+$
+_pragma(classify_level=basic)
+condition.define_condition(:birdseye_lat_shift_zoom_in,:user_error,{})
+$
+_pragma(classify_level=basic)
+condition.define_condition(:birdseye_cache_load_successful,:warning,{:old_size,:new_size})
+$
+_pragma(classify_level=basic)
+condition.define_condition(:wmc_no_search_results,:warning,{})
+$
+_pragma(classify_level=basic)
+condition.define_condition(:wmc_josm_not_running,:warning,{})
+$

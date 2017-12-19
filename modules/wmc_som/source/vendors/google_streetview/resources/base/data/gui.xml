@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="windows-1252" standalone="yes"?>
+<gui>
+	<menu name="menubar" type="menubar">
+		<submenu name="file">
+			<action name="google_streetview.quit" action_message="quit()" control_type="button_item"/>
+		</submenu>
+
+		<submenu name="help">
+			<action name="google_streetview.about" action_message="about()" control_type="button_item"/>
+		</submenu>
+	</menu>
+
+	<work_area>
+		<plugin plugin_name="google_streetview"/>
+	</work_area>
+</gui>

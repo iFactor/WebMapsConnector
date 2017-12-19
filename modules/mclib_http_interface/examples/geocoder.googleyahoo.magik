@@ -1,0 +1,306 @@
+#% text_encoding = cp1252
+########################################################################
+##
+## Last Saved Time-stamp: <2006-08-08 23:59:53 Brad.Sileo>
+##
+## Created By: Tony Sileo
+## Date: 12-10-2005
+## Copyright 2005 Tony Sileo
+##
+## This file is part of Magik Components for SWAF.
+##
+##     Magik Components for SWAF is free software; you can redistribute it and/or modify
+##     it under the terms of the GNU General Public License as published by
+##     the Free Software Foundation; either version 2 of the License, or
+##     (at your option) any later version.
+##
+##     Magik Components for SWAF is distributed in the hope that it will be useful,
+##     but WITHOUT ANY WARRANTY; without even the implied warranty of
+##     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+##     GNU General Public License for more details.
+##
+##     You should have received a copy of the GNU General Public License
+##     along with Magik Components for SWAF; if not, write to the Free Software
+##     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+##
+########################################################################
+_package mclib
+
+_pragma(classify_level=basic)
+##
+## This class allows you to geocode address strings using
+## various public geocoding web services.
+
+def_slotted_exemplar(:geocoder,
+{},
+{:sw_component})
+$
+condition.define_condition(:mclib_geocode_warning,:warning,
+			   {:address,:warning},
+			   "Warning from geocoder for address #1: #2.")
+$
+condition.define_condition(:mclib_cant_geocode_address,:error,
+			   {:address,:response},
+			   "Unable to geocode #1. Response=#2.")
+$
+condition.define_condition(:mclib_geocode_request_warning,:warning,
+			   {:request,:retries,:cond},
+			   "#1 generated #3 while geocoding. #2 retries remaining.")
+$
+condition.define_condition(:mclib_geocode_request_error,:error,
+			   {:request},
+			   "#1 failed while geocoding.")
+$
+
+
+_pragma(classify_level=basic)
+_method geocoder.get_google_point_for(an_address,key)
+	## 
+	## 
+	##
+
+	# (06-24-2006 Brad Sileo): created.
+	_for a_point _over _self.get_google_points_for(an_address,key)
+	_loop
+		_return a_point
+	_endloop
+_endmethod
+$
+
+_pragma(classify_level=basic)
+_iter _method geocoder.get_google_points_for(an_address,key)
+	## 
+	## 
+	##
+
+	# (06-24-2006 Brad Sileo): created.
+	cs << coordinate_system.new_proj_long_lat(:wgs84,:degree)
+	pw << pseudo_world.new(cs)
+	_for a_coord _over _self.google_coords_for(an_address, key)
+	_loop
+		pp << pseudo_point.new(a_coord)
+		pp.world << pw
+		_loopbody(pp)
+	_endloop
+_endmethod
+$
+
+
+_pragma(classify_level=basic)
+_method geocoder.get_google_coord_for(an_address, key)
+	## Return a long/lat coordinate for AN_ADDRESS, using
+	## maps.google.com.
+	##
+	## Returns _unset if not successful.
+	##
+	## KEY is a valid google key
+	##
+	## This is now revised to use the Google geocoding API.
+	## Note that Google's Terms restrict use for commercial
+	## purposes without a valid license.
+
+	>> rope.new_from_iter(_self,:|google_coords_for()|,an_address, key).an_element()
+
+_endmethod
+$
+
+
+_pragma(classify_level=basic)
+_iter _method geocoder.google_coords_for(an_address, key)
+	## Return all possible long/lat coordinates for AN_ADDRESS, using
+	## maps.google.com.
+	##
+	## KEY is a valid google key
+	##
+	## This is now revised to use the Google geocoding API.
+	## Note that Google's Terms restrict use for commercial
+	## purposes without a valid license.
+
+	url_encoded_address << mclib:http_request.url_encode(an_address)
+	
+	#debug _global hr
+	hr << http_request.new(:mclib_geocoder,_unset)
+	hr.server << "maps.google.com"
+	hr.path << "/maps/geo"
+	hr.request_properties << "q=" + url_encoded_address + "&output=xml&key=" + key
+
+	#DEBUG _global resp,ll_coord
+	# In case of occasional network errors, we give it a few
+	# retries here...
+	_for retry _over range(4,0,-1)
+	_loop
+		_try _with cond
+			resp << hr.connect()
+			_leave 
+		_when error
+			condition.raise(:mclib_geocode_request_warning,
+					:address,an_address,
+					:retries,retry,
+					:cond,cond)
+		_endtry
+	_finally
+		#debug write("No more HTTP request retries - returning _unset")
+		_return
+	_endloop
+
+	r << resp.smart_result().top_element.element_matching_name("Response")
+
+	status_code << r.element_matching_name("Status").element_matching_name("code").xml_contents
+	# Status Values are:
+	# G_GEO_SUCCESS = 200
+	# G_GEO_MISSING_ADDRESS = 601
+	# G_GEO_UNKNOWN_ADDRESS = 602
+	# G_GEO_UNAVAILABLE_ADDRESS = 603
+	# G_GEO_BAD_KEY = 610
+	# G_GEO_TOO_MANY_QUERIES = 620
+	# G_GEO_SERVER_ERROR = 500
+
+	_if status_code <> "200"
+	_then
+		condition.raise(:mclib_cant_geocode_address,
+				:address,an_address,
+				:response,status_code)	
+		_return
+	_endif
+
+	_for pl _over r.elements_matching_name("Placemark")
+	_loop
+		pt << pl.element_matching_name("Point")
+		coords << pt.element_matching_name("coordinates").xml_contents
+		
+		long << coords.slice(1,coords.index_of(%,)).as_number()
+		lat << coords.slice_to_end(coords.index_of(%,)+1).as_number()
+
+		ll_coord << coordinate.new(long.as_number(),lat.as_number())
+	
+		#debug _dynamic !print_float_precision!
+		#debug !print_float_precision! << 10
+		#debug write("LONG=",ll_coord.x,", LAT=",ll_coord.y)
+			
+		_loopbody(ll_coord)
+	_endloop 
+	
+_endmethod
+$
+
+
+_pragma(classify_level=basic)
+_method geocoder.get_yahoo_point_for(an_address)
+	## 
+	## 
+	##
+
+	# (06-24-2006 Brad Sileo): created.
+	_for a_point _over _self.get_yahoo_points_for(an_address)
+	_loop
+		_return a_point
+	_endloop
+_endmethod
+$
+
+_pragma(classify_level=basic)
+_iter _method geocoder.get_yahoo_points_for(an_address)
+	## 
+	## 
+	##
+
+	# (06-24-2006 Brad Sileo): created.
+	cs << coordinate_system.new_proj_long_lat(:wgs84,:degree)
+	pw << pseudo_world.new(cs)
+	_for a_coord _over _self.yahoo_coords_for(an_address)
+	_loop
+		pp << pseudo_point.new(a_coord)
+		pp.world << pw
+		_loopbody(pp)
+	_endloop
+_endmethod
+$
+
+
+
+
+_pragma(classify_level=basic)
+_iter _method geocoder.yahoo_coords_for(an_address)
+	## Iterate over long/lat coordinate for AN_ADDRESS, using the
+	## Yahoo Maps geocoding service.
+	##
+	## http://developer.yahoo.net/maps/rest/V1/geocode.html
+	##
+	## Returns _unset if not successful.
+	##
+	## This service is free, but is rate limited to 50k requests per 24 hour 
+	## period from the same IP address.
+
+	#debug _global hr
+	hr << http_request.new(:geocode,_unset,
+			       :server,"api.local.yahoo.com",
+			       :port,80,
+			       :path,"/MapsService/V1/geocode")
+	
+	pl << property_list.new_with(:appid,"Magik_mclib",
+				     :|location|,an_address)
+	hr.set_request_properties(_scatter pl)
+	#DEBUG _global resp,resp_obj,ll_coord
+
+	_for retry _over range(4,0,-1)
+	_loop
+		_try _with cond
+			resp << hr.connect()
+			_leave 
+		_when error
+			condition.raise(:mclib_geocode_request_warning,
+					:address,an_address,
+					:retries,retry,
+					:cond,cond)
+		_endtry
+	_finally
+		#debug write("No more HTTP request retries - returning _unset")
+		_return
+	_endloop
+	
+	resp_obj << resp.smart_result()
+	#DEBUG write(resp_obj)
+
+	_if resp_obj.is_kind_of?(simple_xml_mixin) _is _false 
+	_then
+		condition.raise(:mclib_cant_geocode_address,
+				:address,an_address,
+				:response,resp_obj)
+		_return
+	_endif
+
+	_for result _over resp_obj.top_element.elements_matching_name(:|Result|)
+	_loop 
+		_if (warning << result.attribute(:warning)) _isnt _unset
+		_then
+			condition.raise(:mclib_geocode_warning,
+					:address,an_address,
+					:warning,warning)
+		_endif
+		
+		precision << result.attribute(:precision)
+		lat << result.get_element_contents(:|Latitude|)
+		long << result.get_element_contents(:|Longitude|)
+	
+		_if (precision <> "address" _andif precision <> "street") _orif
+		    lat _is _unset _orif 
+		    long _is _unset 
+		_then
+			condition.raise(:mclib_cant_geocode_address,
+					:address,an_address,
+					:response,"precision=" + precision.default(""))
+			_return
+		_endif
+		
+		ll_coord << coordinate.new(long.as_number(),lat.as_number())
+	
+		#debug _dynamic !print_float_precision!
+		#debug !print_float_precision! << 10
+		#debug write("LONG=",ll_coord.x,", LAT=",ll_coord.y)
+	
+		_loopbody(ll_coord)
+	_endloop 
+
+_endmethod
+$
+

@@ -1,0 +1,276 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+
+########################################################################
+##
+## Last Saved Time-stamp:
+##
+## Created By: Greg Cahill, iFactor Consulting
+## Date: 09-Nov-2009
+##
+##
+## Description: A structured waypoint for use in the Route Finder.
+##
+## ---------- Revision History -----------
+##
+## -------- end revision history ---------
+########################################################################
+
+
+_pragma(classify_level=restricted, topic={wmc_route_finder})
+def_slotted_exemplar(:wmc_waypoint,
+	{
+		{:description, _unset, :writable},
+		{:long_lat, _unset, :writable},
+		{:location, _unset, :writable}
+	}
+	)
+$
+
+_pragma(classify_level=restricted, topic={wmc_route_finder})
+wmc_waypoint.define_shared_constant(
+	## The style for the text inside self's symbol
+	:text_style,
+	vtext_style.new_with_properties(
+		       :font, font.new_with_properties(:type, :logical,
+						       :name, "fancy",
+						       :point_size, 9),
+		       :colour, colour.called(:black),       #a_colour
+		       #:boxed?, _true,
+		       #:line_style, line_style.new_with_properties(
+		       #			    :foreground_colour, a_colour,
+		       #			    :width, 3),
+		       #:fill?, _true,
+		       #:fill_style, fill_style.new_with_properties(
+		       #			    :foreground_colour, colour.called(:white),
+		       #			    :wash_percent, 50),
+		       #:clear?, _false,
+		       :xscale, 1.0,
+		       :yscale, 1.0
+			   ),
+	_false)
+$
+
+_pragma(classify_level=restricted, topic={wmc_route_finder})
+wmc_waypoint.define_shared_constant(
+	## The symbol for the waypoint
+	:point_symbol,
+	_proc()
+		# Make a circle and a triangle for the waypoint pin
+		offset << 12.0
+		rad << offset*0.50
+		a_sr << sector_rope.new_with(
+				sector.new_directly_from_vector(
+					coords_vector.new_with_xy(
+						0.0, 0.0,
+						rad*0.80, offset,
+						-rad*0.80, offset
+						      )
+				       )
+				    )
+		a_sr.close()
+		a_pa << pseudo_area.new_with_sectors(a_sr)
+		a_pa << a_pa.union_in_situ(pseudo_area.new(circle.new(coordinate.new(0.0, offset),
+								      rad)))
+
+		>> a_pa
+	_endproc(),
+	_false)
+$
+_pragma(classify_level=restricted, topic={wmc_route_finder})
+_method wmc_waypoint.safe_current_coordinate_system()
+	## if there is no !current_coordinate_system! set, then use one
+	## customized for the current installation.
+
+	_import _dynamic !current_coordinate_system!
+
+	_if !current_coordinate_system! _is _unset 
+	_then
+		!current_coordinate_system! << wmc_dataset_manager.custom_coordinate_system()
+	_endif
+_endmethod
+$
+
+_pragma(classify_level=restricted, topic={wmc_route_finder})
+_method wmc_waypoint.new(_gather args)
+	##
+	##
+
+	>> _clone.init(_scatter args)
+_endmethod
+$
+
+_pragma(classify_level=restricted, topic={wmc_route_finder})
+_method wmc_waypoint.init(a_desc)
+	## Create a new waypoint object.
+
+	.description << a_desc
+
+	>> _self
+_endmethod
+$
+
+_pragma(classify_level=restricted, topic={wmc_route_finder})
+_method wmc_waypoint.new_for_geom(a_desc, a_geom)
+	## Creates new instance of self with a_desc and located at a_geom.
+	##
+
+	# it shouldn't matter what worlds we choose, EXCEPT, some
+	# installations have not labelled their database worlds and
+	# therefore we need to assume that waypoints and routes are
+	# always stored in !current_coordinate_system!
+
+	_dynamic !current_coordinate_system!
+
+	_self.safe_current_coordinate_system()
+
+	_local a_world << pseudo_world.new(!current_coordinate_system!)
+	
+	a_wp << _clone.init(a_desc)
+
+	a_loc << (_if {:point, :simple_point, :text}.includes?(a_geom.geom_type)
+		  _then >> pseudo_point.new_for_world(a_geom, a_world)
+		  _elif {:chain, :simple_chain}.includes?(a_geom.geom_type)
+		  _then >> pseudo_point.new_for_world(a_geom.location_for_length(a_geom.line_length / 2.0 ).coord, a_world)
+		  _elif {:area, :simple_area}.includes?(a_geom.geom_type)
+		  _then >> pseudo_point.new_for_world(a_geom.an_internal_point(), a_world)
+		  _endif)
+	_if a_loc _isnt _unset
+	_then
+		a_wp.location << a_loc
+	_endif
+
+
+	>> a_wp
+_endmethod
+$
+_pragma(classify_level=restricted, topic={wmc_route_finder})
+_method wmc_waypoint.new_at_coord(a_desc, a_coord)
+	## Creates new instance of self with a_desc and located at a_coord.
+	##
+
+	# it shouldn't matter what worlds we choose, EXCEPT, some
+	# installations have not labelled their database worlds and
+	# therefore we need to assume that waypoints and routes are
+	# always stored in !current_coordinate_system!
+
+	_dynamic !current_coordinate_system!
+
+	_self.safe_current_coordinate_system()
+	
+	_local a_world << pseudo_world.new(!current_coordinate_system!)
+
+	a_wp << _clone.init(a_desc)
+	a_wp.location << pseudo_point.new_for_world(a_coord,a_world)
+
+	>> a_wp
+_endmethod
+
+_pragma(classify_level=basic, topic={wmc_route_finder})
+_method wmc_waypoint.cf(another)
+	## Compares self to another.
+	## Returns true if self is less than another,
+	##         maybe if self is equal to another,
+	##         false if self is greater than another
+
+	_return _self.description _cf another.description
+_endmethod
+$
+
+_pragma(classify_level=basic, topic={wmc_route_finder})
+_method wmc_waypoint.write_on(a_strm)
+	## Write self on to the stream
+	## 
+
+	_dynamic !print_float_precision! << 12
+
+	a_strm.write_list_with_separator(
+		{_self.description, _self.location.x, _self.location.y}, %|)
+	a_strm.write(newline_char)
+	
+_endmethod
+$
+
+_pragma(classify_level=basic, topic={wmc_route_finder})
+_method wmc_waypoint.as_display_tree(_optional label, start_end_flag)
+	## Returns a display_tree of self.
+	## label is a string that goes in front of the description,
+	## e.g. an index ("1", "2", etc)
+	## start_end_flag indicates whether a start, end, or
+	## intermediate flag should be included.
+
+	start_end_flag << start_end_flag.default(:intermediate_wp)
+
+	a_dt << display_tree.new(_self,
+				 property_list.new_with(
+					 :label, label.default(""),
+					 :name, _self.description,
+					 :location, _self.location,
+					 :flag_name, start_end_flag
+					       ))
+	
+	a_dt.styled_string << {:image, {start_end_flag, _self.module_name},
+			       :bold, :value, :label, :space,
+			       :black, :value, :name}
+	                       #:image, {:birds_eye, :ve_som}}
+
+	>> a_dt
+	
+_endmethod
+$
+
+_pragma(classify_level=basic, topic={wmc_route_finder})
+_method wmc_waypoint.point_style(a_str, a_colour)
+	## Returns the point style for self
+	##
+
+	vts << _self.text_style
+	vts.realise()
+	
+	# Get the waypoint symbol
+	a_pa << _self.point_symbol
+	
+	# Add the text
+	offset << 12.0
+	a_txt_coord << coordinate.new(0.0, offset)
+	a_text << pseudo_text.new(a_txt_coord,
+				  a_str,
+				  0.0, 33, :default, 0.80)
+	a_pt_style << composite_point_style.new(
+			      {a_pa, a_pa, a_text},
+			      {fill_style.new_with_properties(
+				       :foreground_colour, a_colour,
+				       :wash_percent, 100
+					  ),
+			       line_style.new_with_properties(
+				       :foreground_colour, colour.called(:black)
+					  ),
+			       vts},
+			      :unit_factor, 0.80,
+			      :auto_scale?, _false
+					    )
+
+	_return a_pt_style
+_endmethod
+$

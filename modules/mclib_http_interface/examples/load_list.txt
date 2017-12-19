@@ -1,0 +1,5 @@
+#% text_encoding = iso8859_1
+
+geocoder.googleyahoo.magik
+geocoder.us.magik
+yahoo_maps_interface.magik

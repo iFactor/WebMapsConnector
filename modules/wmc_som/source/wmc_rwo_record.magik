@@ -1,0 +1,330 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+def_slotted_exemplar(:wmc_rwo_record,
+		    {},
+		    {:uds_rwo_record})
+$
+
+wmc_rwo_record.define_shared_constant(:DATASET_NAME,
+	:wmc_dataset,
+	:private)
+$
+_pragma(classify_level=advanced, usage={redefinable, subclassable})
+## the maximum number of tiles that should be rendered in a
+## map_view for this type of data.  If the code determines that
+## this threshold will be exceeded then it recursively tries at
+## the next zoomed-out level of detail until the calculated
+## number of tiles is within this threshold.
+wmc_rwo_record.define_shared_constant(:MAX_TILE_COUNT,30,:public)
+$
+_pragma(classify_level=basic, usage={subclassable})
+## an extra string that is sent to the ACP at rendering time
+## that can be used to pass any special rendering information. 
+wmc_rwo_record.define_shared_constant(:EXTRA_RENDERING_INFO,
+	"",
+	_false)
+$
+_pragma(classify_level=basic, usage={subclassable})
+## an opacity value that is sent to the ACP to tell it how much
+## transparency to give self's tiles.  1.0 is fully opaque.
+## 0.0 is fully transparent.
+wmc_rwo_record.define_shared_constant(:OPACITY,
+	1.0,
+	_false)
+$
+_pragma(classify_level=basic)
+_method wmc_rwo_record.get_collection(name)
+	## get_collection(symbol NAME) : transient_rwo_collection
+	##
+	## returns a collection named NAME that is part of self's
+	## ve_dataset_manager.dataset.  If NAMEd collection does not
+	## exist or if self's dataset is _unset, return
+	## _unset. 
+	_local ds << gis_program_manager.cached_dataset(_self.DATASET_NAME)
+	
+	_if ds _is _unset
+	_then
+		_return _unset
+	_else
+		_return ds.collection(name)
+	_endif
+_endmethod
+$
+
+wmc_rwo_record.define_shared_constant(:EARTH_RADIUS,6378137,:public)
+$
+wmc_rwo_record.define_shared_constant(:MIN_LATITUDE,-85.05112878,:public)
+$
+wmc_rwo_record.define_shared_constant(:MAX_LATITUDE,85.05112878,:public)
+$
+wmc_rwo_record.define_shared_constant(:MIN_LONGITUDE,-180,:public)
+$
+wmc_rwo_record.define_shared_constant(:MAX_LONGITUDE,180,:public)
+$
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_method wmc_rwo_record.clip(n,min_value,max_value)
+	## 
+	## Enforces max/min on a value
+	>> min(max(n,min_value),max_value)
+_endmethod
+$
+
+
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_method wmc_rwo_record.map_size(level_of_detail)
+	## 
+	## Returns the number of pixels a given level of detail.
+	>> 256 * (2**level_of_detail)
+_endmethod
+$
+
+_pragma(classify_level=advanced,usage={subclassable})
+_method wmc_rwo_record.get_level_of_detail(latitude, view_scale, _optional dpi)
+	## get_level_of_detail(LATITUDE float,
+	##                     VIEW_SCALE float,
+	##                     optional DPI integer) : integer
+	##
+	## returns the Level of Detail best suited for VIEW_SCALE at
+	## LATITUDE for a given DPI.  If no DPI is provided, then this
+	## code uses !window_system!.screen_resolution()
+	
+	_global !window_system!
+
+	_if dpi _is _unset 
+	_then
+		dpi << !window_system!.screen_resolution()
+	_endif
+	
+
+	_local black_box << (cos(latitude.degrees_to_radians * float.pi / 180) * 2 * float.pi * _self.EARTH_RADIUS * dpi)
+
+	_return ((black_box / (view_scale * 256 * 0.0254)).ln / 2.ln).truncated
+_endmethod
+$
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_method wmc_rwo_record.longlat_to_pixel_xy(longitude,latitude,lod)
+	## 
+	## Return pixel XY given a long,lat and level_of_detail.
+	
+	lat  << _self.clip(latitude,_self.MIN_LATITUDE,_self.MAX_LATITUDE)*1.0
+	long << _self.clip(longitude,_self.MIN_LONGITUDE,_self.MAX_LONGITUDE)*1.0
+
+	x << (long + 180) / 360;
+	sin_lat << sin(lat.degrees_to_radians)
+	y << 0.5 - ((1 + sin_lat)/(1-sin_lat)).ln / (4 * float.pi)
+
+	map_size << _self.map_size(lod)
+
+	px << _self.clip(x*map_size+0.5,0,map_size-1)
+	py << _self.clip(y*map_size+0.5,0,map_size-1)
+
+	>> px.floor,py.floor
+_endmethod
+$
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_method wmc_rwo_record.longlat_to_tile_xy(longitude,latitude,lod)
+	## 
+	## Return Tile XY given a long,lat and level_of_detail.
+
+	_local (px,py) << _self.longlat_to_pixel_xy(longitude,latitude,lod)
+	_return _self.pixel_xy_to_tile_xy(px,py)
+_endmethod
+$
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_method wmc_rwo_record.tile_xy_to_longlat(tileX,tileY,lod)
+	## 
+	## Return Longitude and Latitude given a tileX and tileY and
+	## level_of_detail. 
+
+	_local (px,py) << _self.tile_xy_to_pixel_xy(tileX,tileY,lod)
+	_return _self.pixel_xy_to_longlat(px,py,lod)
+_endmethod
+$
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_method wmc_rwo_record.pixel_xy_to_tile_xy(px,py)
+	## 
+	## Return the tile_xy given a pixel_xy pair.
+	>> px.floor _div 256, py.floor _div 256
+_endmethod
+$
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_method wmc_rwo_record.tile_xy_to_quadkey(tx,ty,lod)
+	## 
+	## Return the quadkey for the tile [TX,TY] at level of detail LOD.
+	qk << ""
+
+	_for i _over lod.downto(1)
+	_loop
+		f << 2 ** (i-1)
+		k << 0
+
+		_if (tx _and f) _isnt 0
+		_then
+			k +<< 1
+		_endif
+		
+		_if (ty _and f) _isnt 0
+		_then
+			k +<< 2
+		_endif
+
+		qk +<< k.write_string
+		
+	_endloop
+
+	>> qk
+_endmethod
+$
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_method wmc_rwo_record.quadkey_to_tile_xy(qk)
+	## 
+	## Find the tile xy that matches the quadkey QK.
+
+	tx << 0
+	ty << 0
+	lod << qk.size
+	
+	_for i _over 1.upto(lod)
+	_loop
+		k << qk[i].write_string.as_number()
+
+		_if k _mod 2 _is 1
+		_then
+			tx +<< 2 **(lod-i)
+		_endif
+		
+		_if k > 1
+		_then
+			ty +<< 2 **(lod-i)
+		_endif
+	_endloop
+
+	>> tx,ty
+_endmethod
+$
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_method wmc_rwo_record.tile_xy_to_pixel_xy(tx,ty)
+	## 
+	## Return the tile_xy given a pixel_xy pair.
+	>> tx*256, ty*256
+_endmethod
+$
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_private _method wmc_rwo_record.quadkey_tile_bounds(qk)
+	## 
+	## Return the LongLat bounding box covered by the tile with quadkey QK.
+
+	_local (tx,ty)      << _self.quadkey_to_tile_xy(qk)
+	_local (px,py)      << _self.tile_xy_to_pixel_xy(tx,ty)
+	_local (long,lat)   << _self.pixel_xy_to_longlat(px,py,qk.size)
+	(px,py)      << _self.tile_xy_to_pixel_xy(tx+1,ty+1)
+	_local (long1,lat1) << _self.pixel_xy_to_longlat(px,py,qk.size)
+
+	>> bounding_box.new(long,lat,long1,lat1)
+_endmethod
+$
+
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_method wmc_rwo_record.pixel_xy_to_longlat(px,py,lod)
+	## 
+	## Convert a given pixel XY at LOD to LongLat.
+
+	long << px * 360 / _self.map_size(lod) - 180
+
+	t << float.e ** (4*float.pi * (0.5-py/_self.map_size(lod)))
+	sin_lat << (t-1)/(t+1)
+	lat << asin(sin_lat)
+
+	>> long*1.0,lat.radians_to_degrees
+_endmethod
+$
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_method wmc_rwo_record.tile_outline_in_pixels(_optional info)
+	
+	_return sector.new_with(coordinate(0,256),
+				coordinate(256,256),
+				coordinate(256,0),
+				coordinate(0,0),
+				coordinate(0,256))
+	
+_endmethod
+$
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_method wmc_rwo_record.tile_outline_in_ll(tile_quadkey)
+
+	_local ll_bb << _self.quadkey_tile_bounds(tile_quadkey)
+	_return sector.new_with(ll_bb.bottom_left,
+				ll_bb.bottom_right,
+				ll_bb.top_right,
+				ll_bb.top_left,
+				ll_bb.bottom_left)
+_endmethod
+$
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_method wmc_rwo_record.covering_quadkey(ll_bounds)
+	## covering_quadkey(ll_bounds) : string
+	##
+	## returns the smallest quadkeys that completely cover
+	## LL_BOUNDS.  LL_BOUNDS is a bounding box in the Lat/Long
+	## coordinate system.
+
+	_local px,py
+	_local tx,ty
+	_local qk
+	_local coords << ll_bounds.coords
+	_local coord
+	_local zoom_level << 21
+	_local quadkeys << rope.new()
+	
+	_for idx _over range(1,4,1)
+	_loop
+		coord << coords[idx]
+		
+		(px,py) << _self.longlat_to_pixel_xy(coord.x,coord.y,zoom_level,_true)
+		(tx,ty) << _self.pixel_xy_to_tile_xy(px,py)
+		quadkeys.add_last(_self.tile_xy_to_quadkey(tx,ty,zoom_level).split_by(%|).first)
+	_endloop
+
+	_local covering_quadkey << rope.new()
+	
+	_for i _over range(1,quadkeys.an_element().size,1)
+	_loop
+		_if (quadkeys[1][i] = quadkeys[2][i]) _andif
+		    (quadkeys[2][i] = quadkeys[3][i]) _andif
+		    (quadkeys[3][i] = quadkeys[4][i])
+		_then
+			covering_quadkey.add_last(quadkeys[1][i])
+		_else
+			_leave
+		_endif
+	_endloop
+
+	covering_quadkey << write_string(_scatter covering_quadkey)
+
+	_return covering_quadkey
+_endmethod
+$
+
+
+

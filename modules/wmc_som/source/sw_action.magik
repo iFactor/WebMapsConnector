@@ -1,0 +1,49 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package sw
+$
+
+_pragma(classify_level=restricted, usage={redefinable})
+_method sw_action.ve_query_focus_changed(has_focus?)
+	## ve_query_focus_changed(boolean HAS_FOCUS?)
+	##
+	## called whenever the :query action's focus changes. 
+
+	_local owning_plugin << _self.engine
+	
+	_constant help_string << owning_plugin.message(:query_help_string)
+
+	_if _not has_focus? _andif
+	    _self.value.default("").empty?
+	_then
+		_self.value << help_string
+
+	_elif has_focus? _andif
+	      _self.value = help_string
+	_then
+		_self.value << ""
+	_endif
+
+	owning_plugin.manage_actions()
+_endmethod
+$
+

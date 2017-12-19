@@ -1,0 +1,10 @@
+wmc_cambridge_example	4100
+
+description
+	Web Maps Connector in a Cambridge Demonstration application.
+end
+
+requires
+	wmc_magik_gui
+	cam_db_swaf_professional_application
+end

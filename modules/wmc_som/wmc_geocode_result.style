@@ -1,0 +1,290 @@
+#% text_encoding = utf8
+#Style Dump
+#V3.2
+_package sw
+
+_block
+!current_package!.define_variable(:bc,_unset)
+!current_package!.define_variable(:c,_unset)
+!current_package!.define_variable(:cbt,_unset)
+!current_package!.define_variable(:cell_ec,_unset)
+!current_package!.define_variable(:cell_nc,_unset)
+!current_package!.define_variable(:cell_vc,_unset)
+!current_package!.define_variable(:crs,_unset)
+!current_package!.define_variable(:crs?,_unset)
+!current_package!.define_variable(:fbc,_unset)
+!current_package!.define_variable(:fc,_unset)
+!current_package!.define_variable(:fd,_unset)
+!current_package!.define_variable(:ffc,_unset)
+!current_package!.define_variable(:g,_unset)
+!current_package!.define_variable(:gat,_unset)
+!current_package!.define_variable(:gc,_unset)
+!current_package!.define_variable(:gh,_unset)
+!current_package!.define_variable(:glt,_unset)
+!current_package!.define_variable(:gpt,_unset)
+!current_package!.define_variable(:grt,_unset)
+!current_package!.define_variable(:gtt,_unset)
+!current_package!.define_variable(:hc,_unset)
+!current_package!.define_variable(:l,_unset)
+!current_package!.define_variable(:lbt,_unset)
+!current_package!.define_variable(:lh,_unset)
+!current_package!.define_variable(:nd,_unset)
+!current_package!.define_variable(:np,_unset)
+!current_package!.define_variable(:r,_unset)
+!current_package!.define_variable(:rlt,_unset)
+!current_package!.define_variable(:rmit,_unset)
+!current_package!.define_variable(:rmt,_unset)
+!current_package!.define_variable(:rm_id,_unset)
+!current_package!.define_variable(:rst,_unset)
+!current_package!.define_variable(:sh,_unset)
+!current_package!.define_variable(:sid,_unset)
+!current_package!.define_variable(:sr,_unset)
+!current_package!.define_variable(:stk,_unset)
+!current_package!.define_variable(:sw,_unset)
+!current_package!.define_variable(:syt,_unset)
+!current_package!.define_variable(:t,_unset)
+!current_package!.define_variable(:tbt,_unset)
+!current_package!.define_variable(:xh,_unset)
+!current_package!.define_variable(:xlt,_unset)
+_endblock
+$
+rst << !current_dsview!.collections[:sw_gis!rwo_style]
+glt << !current_dsview!.collections[:sw_gis!gis_line_style]
+gat << !current_dsview!.collections[:sw_gis!gis_area_style]
+gtt << !current_dsview!.collections[:sw_gis!gis_text_style]
+gpt << !current_dsview!.collections[:sw_gis!gis_point_style]
+grt << !current_dsview!.collections[:sw_gis!gis_raster_style]
+syt << !current_dsview!.collections[:sw_gis!symbol_component]
+!loader!.n_read<<10
+$
+xlt << !current_dsview!.collections[:sw_gis!crosshatch_layer]
+cbt << colour_bundle_table.open(!current_dsview!,"default")
+cbt.bundle_for({100,0,0})
+lbt <<  !current_dsview!.collections[:sw_gis!line_bundle]
+tbt <<  !current_dsview!.collections[:sw_gis!text_bundle]
+rlt <<  !current_dsview!.collections[:sw_gis!raster_style_layer]
+rmt <<  !current_dsview!.collections[:sw_gis!range_map]
+rmit << !current_dsview!.collections[:sw_gis!range_map_item]
+!loader!.n_read<<20
+$
+
+lh << !style_load_caches!
+np << {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+nd << {0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0}
+stk << hash_table.new(10)
+
+_global crs << _proc @crs(table, style_name, rwo_name, app_name, style_type, scale, sub_code, geom_code,
+			  style_method, draw_method, style_id)
+		       _dynamic !overwrite_styles?!
+		       _dynamic !loader!
+
+		       m << _allresults !loader!.mapping_for(style_name, rwo_name, app_name, style_type, scale)
+
+		       _if m.size < 1 _then _return _endif
+		       v << m.concatenation(m, {sub_code, geom_code, style_method, draw_method, style_id, _unset })
+
+		       _if !overwrite_styles?!
+		       _then res << table.insert_or_update(v)
+		       _else res << table.insert(v)
+		       _endif
+		       _if res _isnt _unset _then !loader!.n_loaded+<<1 _endif
+_endproc
+$
+!loader!.n_read<<45
+$
+
+_global gh << _proc @gh(id)
+		       _global lh
+
+		       _for c _over lh.fast_elements()
+		       _loop
+		           _if (sid << c[id]) _isnt _unset _then _return sid _endif
+		       _endloop
+		       _return 0
+_endproc
+$
+!loader!.n_read<<58
+$
+
+_global sh << _proc @sh(id, sid)
+		       _global lh
+
+		       _local tc
+		       _for c _over lh.fast_elements()
+		       _loop
+		           _if c.size < 10000 _then tc << c; _leave _endif
+		       _finally
+		           lh.add_last(tc << equality_hash_table.new(500))
+		       _endloop
+		       _return (tc[id] << sid)
+_endproc
+$
+!loader!.n_read<<74
+$
+
+crs? << !loader!.create_sym?("ve_geocode_point")
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+sw<<!current_dsview!.create_world("gis symbols","ve_geocode_point",:units, :um)
+!current_world! << sw
+_endif
+!loader!.n_read<<84
+$
+!current_world!<<!current_dsview!.world("gis symbols","ve_geocode_point")
+sr<<sector_rope.new_with(sector.new_with(coordinate(0.00000000000,0.00000000000)))
+fd<<!current_dsview!.geometry_field_for(:symbol_definition,:name)
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g<<text.new_with_sectors(fd,sr,"ve_geocode_point")
+g.just<<22
+_endif
+!loader!.n_read<<95
+$
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g.meta_data_id<<0
+syt.insert({"ve_geocode_point",1,6,g.text_id,0,_unset})
+_endif
+!loader!.n_read<<103
+$
+sr<<sector_rope.new_with(sector.new_with(coordinate(0.00000000000,0.00000000000)))
+fd<<!current_dsview!.geometry_field_for(:symbol_definition,:datum)
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g<<simple_point.new_with_sectors(fd,sr)
+_endif
+!loader!.n_read<<112
+$
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g.meta_data_id<<0
+syt.insert({"ve_geocode_point",2,3,g.point_id,0,_unset})
+_endif
+!loader!.n_read<<120
+$
+sr<<sector_rope.new_with(sector.new_with(coordinate(-13000.0000000,0.00000000000),coordinate(-13000.0000000,25000.0000000),
+coordinate(13000.0000000,25000.0000000),coordinate(13000.0000000,0.00000000000),coordinate(-13000.0000000,0.00000000000)))
+fd<<!current_dsview!.geometry_field_for(:symbol_definition,:boundary)
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g<<simple_area.new_with_sectors(fd,sr)
+_endif
+!loader!.n_read<<130
+$
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g.meta_data_id<<0
+syt.insert({"ve_geocode_point",3,1,g.area_id,0,_unset})
+_endif
+!loader!.n_read<<138
+$
+sr<<sector_rope.new_with(sector.new_with(coordinate(-13000.0000000,25000.0000000),coordinate(13000.0000000,25000.0000000),
+coordinate(13000.0000000,5000.00000000),coordinate(5000.00000000,5000.00000000),coordinate(0.00000000000,0.00000000000),
+coordinate(-5000.00000000,5000.00000000),coordinate(-13000.0000000,5000.00000000),
+coordinate(-13000.0000000,25000.0000000)))
+fd<<!current_dsview!.geometry_field_for(:symbol_definition,:symbol_area)
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g<<simple_area.new_with_sectors(fd,sr)
+_endif
+!loader!.n_read<<150
+$
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+ffc<<cbt.bundle_for({100,42,0}).colour_id
+sh(403662,ffc)
+l<<lbt.insert({_unset,"solid",np,"butt","miter",2,_unset}).line_id
+sh(21482,l)
+fc<<cbt.bundle_for({0,0,0}).colour_id
+sh(4496,fc)
+sid<<glt.insert({_unset,"",nd,l,fc,0,_unset}).style_id
+sh(403663,sid)
+sid<<gat.insert({_unset,"",nd,_true,100,"",ffc,0,_true,sid,_false,0,_unset}).style_id
+sh(403661,sid)
+g.meta_data_id<<sid
+syt.insert({"ve_geocode_point",4,1,g.area_id,sid,_unset})
+_endif
+!loader!.n_read<<168
+$
+sr<<sector_rope.new_with(sector.new_with(coordinate(-3000.00000000,21020.0000000),coordinate(3000.00000000,21020.0000000),
+coordinate(2958.00000000,12020.0000000),coordinate(6000.00000000,12020.0000000),coordinate(0.00000000000,6020.00000000),
+coordinate(-6000.00000000,12020.0000000),coordinate(-3000.00000000,12020.0000000),
+coordinate(-3000.00000000,21020.0000000)))
+fd<<!current_dsview!.geometry_field_for(:symbol_definition,:symbol_area)
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g<<simple_area.new_with_sectors(fd,sr)
+_endif
+!loader!.n_read<<180
+$
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+ffc<<cbt.bundle_for({40,47,80}).colour_id
+sh(403665,ffc)
+l<<lbt.insert({_unset,"solid",np,"butt","miter",0,_unset}).line_id
+sh(4778,l)
+fc<<cbt.bundle_for({100,100,100}).colour_id
+sh(21494,fc)
+sid<<glt.insert({_unset,"",nd,l,fc,0,_unset}).style_id
+sh(403666,sid)
+sid<<gat.insert({_unset,"",nd,_true,100,"",ffc,0,_true,sid,_false,0,_unset}).style_id
+sh(403664,sid)
+g.meta_data_id<<sid
+syt.insert({"ve_geocode_point",5,1,g.area_id,sid,_unset})
+_endif
+!loader!.n_read<<198
+$
+sid<<gpt.insert({_unset,"",nd,0,0,_false,1.000,0,{-13.00,0.000,13.00,25.00},1,"ve_geocode_point",
+_unset}).style_id
+sh(403643,sid)
+crs(rst,"Default","bing_geocode_result","location","highlight","10000",0,3,"","",sid,_unset)
+crs(rst,"Default","bing_geocode_result","location","highlight","100000",0,3,"","",gh(403643),
+_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,1.000,0,{-13.00,0.000,13.00,25.00},1,"ve_geocode_point",
+_unset}).style_id
+sh(403667,sid)
+crs(rst,"Default","bing_geocode_result","location","highlight","1250",0,3,"","",sid,_unset)
+!loader!.n_read<<210
+$
+crs(rst,"Default","bing_geocode_result","location","highlight","500000",0,3,"","",gh(403643),
+_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,1.000,0,{-13.00,0.000,13.00,25.00},1,"ve_geocode_point",
+_unset}).style_id
+sh(403668,sid)
+crs(rst,"Default","bing_geocode_result","location","highlight","Auto",0,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,1.000,0,{-13.00,0.000,13.00,25.00},0,"ve_geocode_point",
+_unset}).style_id
+!loader!.n_read<<220
+$
+sh(403642,sid)
+crs(rst,"Default","bing_geocode_result","location","normal","10000",0,3,"","",sid,_unset)
+crs(rst,"Default","bing_geocode_result","location","normal","100000",0,3,"","",gh(403642),
+_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,1.000,0,{-13.00,0.000,13.00,25.00},0,"ve_geocode_point",
+_unset}).style_id
+sh(403659,sid)
+crs(rst,"Default","bing_geocode_result","location","normal","1250",0,3,"","",sid,_unset)
+!loader!.n_read<<230
+$
+crs(rst,"Default","bing_geocode_result","location","normal","500000",0,3,"","",gh(403642),
+_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,1.000,0,{-13.00,0.000,13.00,25.00},0,"ve_geocode_point",
+_unset}).style_id
+sh(403644,sid)
+crs(rst,"Default","bing_geocode_result","location","normal","Auto",0,3,"","",sid,_unset)
+$
+
+!loader!.n_read<<240
+$
+$

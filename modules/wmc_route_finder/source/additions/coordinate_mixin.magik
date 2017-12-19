@@ -1,0 +1,74 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+
+########################################################################
+##
+## Created By: Greg Cahill, iFactor Consulting
+## Date: 10-Nov-2009
+##
+##
+## Description: 
+##
+## ---------- Revision History -----------
+##
+## -------- end revision history ---------
+########################################################################
+
+
+_pragma(classify_level=advanced, topic={wmc_route_finder}, usage={subclassable})
+_method coordinate_mixin.description_for_route_finder()
+	## Backstop method to return a string for use in the WMC Route Finder
+	##
+
+	_dynamic !print_float_precision! << 10
+
+	_dynamic !current_coordinate_system!
+	
+	_if !current_coordinate_system! _is _unset
+	_then
+		!current_coordinate_system! << wmc_dataset_manager.custom_coordinate_system()
+	_endif 
+
+	# Attempt to reverse geocode the location
+	a_desc << _unset
+	_if if_ve_acp _isnt _unset _andif
+	    gis_program_manager.cached_dataset(bing_dataset.DATASET_NAME) _isnt _unset
+	_then
+		tr << transform.new_converting_cs_to_cs(!current_coordinate_system!,
+							bing_dataset.LONGLAT_COORDINATE_SYSTEM)
+	
+		ll_coord << tr.convert(_self)
+		(result,success?) << if_ve_acp.get_reverse_geocode_for_lat_long(ll_coord.y,
+										ll_coord.x)
+		_if success?
+		_then
+			a_desc << result
+		_endif
+	_endif
+
+	>> a_desc.default(_self.write_string)
+
+_endmethod
+$
+

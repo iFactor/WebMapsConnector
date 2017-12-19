@@ -1,0 +1,9 @@
+additions/
+changes/
+canvas_comparer
+canvas_comparer_2
+canvas_comparer_framework
+canvas_comparer_framework_2
+canvas_comparer_plugin
+canvas_comparer_plugin_2
+glue/

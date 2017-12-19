@@ -1,0 +1,8 @@
+wmc_waypoint
+wmc_waypoint_list
+wmc_route_item
+wmc_route_finder
+wmc_route_finder_framework
+wmc_route_finder_plugin
+additions/
+changes/

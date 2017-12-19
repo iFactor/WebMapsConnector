@@ -1,0 +1,115 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+
+################################################################
+##
+## p1000007.1_if_map_service
+##
+## It is helpful to for a rendering_context to include which
+## map_view invoked the rendering_context.  This patch adds
+## dynamic sw:!ve_connector_current_map_view! in
+## sis_map_framework.render() 
+##
+################################################################
+
+sw!patch_software("wmc_som",4100)
+$
+sw!patch_software("sis_core",2)
+$
+# need to move this package declaration AFTER the
+# patch_software() for SIS_CORE because the SIS package does
+# not exist unless that software module is loaded first.
+_package sis
+$
+
+# use define_method_synonym() to wrap some of our behavior
+# around the core method without redefining the core behavior. 
+_if sis_map_framework.method(:original!render|()|) _is _unset 
+_then
+	sis_map_framework.define_method_synonym(:original!render|()|,:render|()|)
+_endif
+$
+
+_pragma(classify_level=restricted)
+_method sis_map_framework.render ( _gather args )
+	##  Sets up the rendering context if required. (It may already
+        ##  have been set-up) and renders the data onto the rendering
+        ##  surface.
+
+	_dynamic !ve_connector_current_map_view! << _self
+	
+	_return _self.original!render(_scatter args)
+_endmethod
+$
+_pragma(classify_level=restricted)
+_method sis_map_framework.current_display_coordinate_system
+	## current_display_coordinate_system : coordinate_system
+	##
+	## for compatibility with map_view class specifically as it is
+	## referenced in ve_tile.
+
+	
+	_return _self.application_coordinate_system
+_endmethod
+$
+_pragma(classify_level=restricted)
+_method sis_map_framework.current_view_parameters()
+	## current_view_parameters() : swaf_map_view_definition
+	##
+	## for compatibility, returns self.view_definition.
+	
+	_return _self.map_state
+_endmethod
+$
+_pragma(classify_level=basic)
+_method sis_map_framework.ve_dpi
+	## ve_dpi : integer
+	##
+	## returns the DOTS per inch based on self.pixel_size 
+
+	# It's not clear to me why doubling the DPI seems to work, but
+	# for now it does.
+	_local pixel_size << _self.map.screen_pixel_size
+	_return (1/pixel_size)*25.4 * 2
+_endmethod
+$
+_pragma(classify_level=basic)
+_method sis_map_framework.wmc_dpi
+	## wmc_dpi : integer
+	##
+	## returns the same as :ve_dpi
+
+	_return _self.ve_dpi
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method sis_map_framework.wmc_viewing_angle
+	## 
+	## For compatability.
+
+	_return _self.map_state.rotation
+_endmethod
+$
+
+
+sw!declare_patch(1000007,"1_if_map_service","Add dynamic sw:!ve_connector_current_map_view! in sis_map_framework.render()")
+$

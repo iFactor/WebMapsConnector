@@ -1,0 +1,356 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+# ************************************************************ 
+#							       
+# (c) 2005-2006 General Electric Company. All Rights Reserved. 
+#							       
+# ************************************************************ 
+_package sw
+
+_pragma(classify_level=advanced)
+##
+## A bounding box labelled with a world, that considers the
+## application coordinate system so that the bounds exposed by
+## _self enclose the result of transforming the original bounds
+## (the bounds _self has been created with) from the coordinate
+## system of the world _self is labelled with, into the
+## application coordinate system. 
+##
+## A pseudo_bounding_box understands all the bounding box
+## protocols.  It can be labelled with world using .new_with()
+## or .world<<.  Note that the following methods will derive
+## a new pseudo_bounding_box labelled with the same world :
+##     .new_enlarging()
+##     .expand()
+##     .offset()
+## 
+def_slotted_exemplar(:pseudo_bounding_box,
+                     {
+			     {:bounds,    _unset},
+			     {:world,     _unset}
+		     },
+		     :bounding_box_mixin)
+$
+
+
+_pragma(classify_level=restricted)
+##
+## This defines the exemplar to use for a coordinate within _self.
+## E.g the type to use when returning/using a coordinate value.
+##
+pseudo_bounding_box.define_shared_constant(:coordinate_type, coordinate, _true)
+$
+
+
+_pragma(classify_level=restricted)
+##
+## This defines the exemplar to use for a coordinate vector
+## within _self.
+##
+pseudo_bounding_box.define_shared_constant(:coord_vector_type, coords_vector, _true)
+$
+
+
+_pragma(classify_level=advanced, topic={geometry})
+_method pseudo_bounding_box.world
+
+	## The world in which _self resides.
+	##
+	## Note this is _unset if _self is not linked to any world.
+
+	>> .world
+_endmethod 
+$
+
+
+_pragma(classify_level=advanced, topic={geometry})
+_method pseudo_bounding_box.world << a_world
+
+	## Asserts that _self resides in the world A_WORLD.
+	##
+	## By doing so, the developer asserts that the coordinates
+	## making up _self are expressed in the same space as A_WORLD.
+	## In particular, if A_WORLD is geo-referenced, that those
+	## coordinates are defined in its Coordinate System.
+	
+	>> (.world << a_world)
+_endmethod
+$
+
+
+_pragma(classify_level=restricted, topic={geometry})
+_method pseudo_bounding_box.int!world_transform
+
+	## The transform from _selfs' world to the current application
+	## space (defined by dynamic !current_coordinate_system!).
+
+	_if .world _isnt _unset _andif .world.labelled?
+	_then
+		_return _self.world.int!world_transform
+	_else
+		_return transform.identity_transform
+	_endif
+_endmethod
+$
+
+
+_pragma(classify_level=advanced, topic={geometry})
+_method pseudo_bounding_box.new_for_world(a_box, a_world)
+
+	## Create a new pseudo_bounding_box labelled with A_WORLD.
+	##
+        ## A_BOX is a bounding box defined in the Application
+        ## coordinate system (the value of the dynamic
+        ## !current_coordinate_system!). 
+	##
+	## A_WORLD is a dataset world, it is used to label the new
+	## pseudo_bounding_box, and its coordinate system is used to
+	## invert A_BOX into that CS.
+	##
+	## No conversion is done if the Application coordinate system
+	## is undefined, or if A_WORLD is not geo-referenced.
+
+	>> _clone.init_for_world(a_box, a_world)
+_endmethod
+$
+
+_pragma(classify_level=restricted, topic={geometry})
+_private _method pseudo_bounding_box.init_for_world(a_box, a_world)
+	
+	.bounds << a_box.invert(a_world.int!world_transform)
+	.world << a_world
+
+	>> _self
+_endmethod
+$
+
+
+_pragma(classify_level=basic, topic={geometry})
+_method pseudo_bounding_box.bounds
+
+	## Returns a bounding_box that encloses _self into the
+	## application coordinate system (i.e. the value of the
+	##  dynamic variable !current_coordinate_system!). 
+	
+	>> .bounds.transform(_self.int!world_transform)
+_endmethod
+$
+
+
+_pragma(classify_level=basic, topic={geometry})
+_method pseudo_bounding_box.xmin
+
+        ## The minimum X coordinate of _self.
+
+	>> _self.bounds.xmin
+_endmethod
+$
+
+
+_pragma(classify_level=basic, topic={geometry})
+_method pseudo_bounding_box.xmax
+
+        ## The maximum X coordinate of _self.
+
+	>> _self.bounds.xmax
+_endmethod
+$
+
+
+_pragma(classify_level=basic, topic={geometry})
+_method pseudo_bounding_box.ymin
+
+        ## The minimum Y coordinate of _self.
+
+	>> _self.bounds.ymin
+_endmethod
+$
+
+
+_pragma(classify_level=basic, topic={geometry})
+_method pseudo_bounding_box.ymax
+
+        ## The maximum Y coordinate of _self.
+
+	>> _self.bounds.ymax
+_endmethod
+$
+
+
+_pragma(classify_level=restricted)
+_method pseudo_bounding_box.init(x1, y1, x2, y2)
+
+	.bounds << bounding_box.new(x1, y1, x2, y2)
+	.world  << _unset
+	
+	>> _self
+_endmethod
+$
+
+
+_pragma(classify_level=restricted)
+_method	pseudo_bounding_box.init_unsafe(x1,y1,x2,y2)
+	
+	## Initialise _self by assuming that X1 < X2 and Y1 < Y2.
+
+	.bounds << bounding_box.new_unsafe(x1, y1, x2, y2)
+	.world  << _unset
+	
+	>> _self
+_endmethod
+$
+
+
+_pragma(classify_level=advanced)
+_method pseudo_bounding_box.new_with(a_box, a_world)
+
+	## Return a new pseudo_bounding_box, built from the bounds BOX,
+	## and labelled with the world A_WORLD.
+	
+	>> _clone.init_with(a_box, a_world)
+_endmethod
+$
+
+
+_pragma(classify_level=restricted)
+_private _method pseudo_bounding_box.init_with(a_box, a_world)
+	
+	.bounds << a_box.bounds # make sure to get a bounding_box object
+	.world  << a_world
+
+	>> _self
+_endmethod
+$
+
+
+_pragma(classify_level=basic)
+_method pseudo_bounding_box.new_enlarging(factor)
+
+	## Create and return a new pseudo_bounding_box which is centred 
+	## on _self but has the width and height scaled by FACTOR.
+	##
+	## _Self's world is copied onto the new bounding box.
+	
+	>> _self.new_with(.bounds.new_enlarging(factor), .world)
+_endmethod
+$
+
+
+_pragma(classify_level=basic, topic={geometry}, usage={external})
+_method pseudo_bounding_box.expand(amount)
+	
+	## Create and return a new pseudo_bounding_box which expands _SELF
+	## by AMOUNT (expressed in the application coordinate system)
+	## in every direction. 
+	##
+	## Negative AMOUNTs are allowed, but the method does not test
+	## if the box vanishes/turns inside out.
+	##
+	## _Self's world is copied onto the new bounding box.
+
+	# Convert 'amount' (a length) to _self's coordinate system
+	x_margin << _self.int!world_transform.inverse().scale_at(_self.centre, 0.0) * amount
+	y_margin << _self.int!world_transform.inverse().scale_at(_self.centre, float.half_pi) * amount
+	
+	# Expand the internal bounding box
+	int_bounds << .bounds.new_enclosing(.bounds, x_margin, y_margin)
+
+	>> _self.new_with(int_bounds, .world)
+_endmethod
+$
+
+
+_pragma(classify_level=basic)
+_method pseudo_bounding_box.offset(x,y)
+
+	## Create and return a new pseudo_bounding_box which offsets _SELF
+	## by X and Y units (expressed in the application coordinate system).
+	##
+	## _Self's world is copied onto the new bounding box.
+	
+	# Convert the offset to _self's coordinate system
+	angle << coordinate(x,y).theta
+	scale << _self.int!world_transform.inverse().scale_at(_self.centre, angle)
+	x_offset << x * scale
+	y_offset << y * scale
+
+	# Offset the internal bounds
+	int_bounds << .bounds.offset(x_offset, y_offset)
+	
+	>> _self.new_with(int_bounds, .world)
+_endmethod
+$
+
+
+_pragma(classify_level=basic, usage={external})
+_method pseudo_bounding_box.centre << coord
+
+	## Change self in-situ so it is now centred around COORD.
+
+	# Convert COORD to the internal CS
+	.bounds.centre << _self.int!world_transform.invert(coord)
+_endmethod
+$
+_pragma(classify_level=basic)
+_method pseudo_bounding_box.transform(a_transform,_optional safe_for_inverse?)
+        ##
+        ## Returns a pseudo_bounding_box that encloses the result of
+        ## transforming SELF with A_TRANSFORM.
+        ##
+        ## For non-affine transforms, an approximate result is returned
+	## based on sampling along the outline of the box.
+	##
+	## Optional SAFE_FOR_INVERSE? is only relevant to transforms
+	## that contain a round trip error (projective and polynomial
+	## transforms). If the option is set to true, then the bounds
+	## returned are guaranteed to enclose all points that could map
+	## to self when transformed by A_TRANSFORM.inverse().
+	##
+
+	bounds << a_transform.convert_bounding_box(_self.bounds,safe_for_inverse?)
+	>> pseudo_bounding_box.new_with( bounds, _self.world )
+	
+_endmethod
+$
+
+_pragma(classify_level=basic, topic={geometry,transform})
+_method pseudo_bounding_box.transformed(a_transform)
+
+        ## Return an in-memory geometry that is the result
+        ## of transforming _SELF with A_TRANSFORM.
+	##
+	## Return a pseudo_area unless _self is degenerate, in which
+	## case another degenerate pseudo_bounding_box is returned.
+
+	_dynamic !current_coordinate_system! << _unset
+	
+	result << _self.bounds.transformed(a_transform)
+
+	_if result.geom_type _is :bounding_box
+	_then
+		result << pseudo_bounding_box.new_with(result, _self.world)
+	_endif
+
+	>> result
+_endmethod
+$
+

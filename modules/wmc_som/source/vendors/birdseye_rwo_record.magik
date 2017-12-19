@@ -1,0 +1,360 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+def_slotted_exemplar(:birdseye_rwo_record,
+		    {},
+		    {:wmc_rwo_record})
+$
+_method birdseye_rwo_record.max_tile_count
+
+	_return 50
+_endmethod
+$
+
+
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_method birdseye_rwo_record.quadkey_tile_bounds(qk)
+	## 
+	## Return the LongLat bounding box covered by the tile with quadkey QK.
+
+	qk << qk.split_by(%|).first
+
+	_dynamic !if_wmc_birdseye_latitude_shift!
+	_local LAT_SHIFT << !if_wmc_birdseye_latitude_shift!
+
+	_local (tx,ty)      << _self.quadkey_to_tile_xy(qk)
+
+	_local (px,py)      << _self.tile_xy_to_pixel_xy(tx,ty)
+	_local (long,lat)   << _self.pixel_xy_to_longlat(px,py,qk.size)
+	(px,py)      << _self.tile_xy_to_pixel_xy(tx+1,ty+1)
+	_local (long1,lat1) << _self.pixel_xy_to_longlat(px,py,qk.size)
+
+	lat +<< LAT_SHIFT
+	lat1 +<< LAT_SHIFT
+	
+	>> bounding_box.new(long,lat,long1,lat1)
+_endmethod
+$
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_method birdseye_rwo_record.longlat_to_pixel_xy(longitude,latitude,lod,_optional ignore_lat_shift?)
+	## 
+	## Return pixel XY given a long,lat and level_of_detail.
+
+	_dynamic !if_wmc_birdseye_latitude_shift!
+	
+	_if ignore_lat_shift? _isnt _true 
+	_then
+		latitude -<< !if_wmc_birdseye_latitude_shift!
+	_endif
+
+	_return _super.longlat_to_pixel_xy(longitude,latitude,lod)
+_endmethod
+$
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_method birdseye_rwo_record.tile_outline_in_pixels(_optional info)
+
+	_dynamic !if_wmc_birdseye_direction!
+
+	_local height << 180
+	_local shift << 0
+
+	_local sec
+
+
+
+	_if !if_wmc_birdseye_direction! = "s"
+	_then
+		sec << sector.new_with(
+			       coordinate(256,0+shift),       # top right
+			       coordinate(0,0+shift),         # top left
+			       coordinate(0,height+shift),    # bottom left
+			       coordinate(256,height+shift),  # bottom right
+			       coordinate(256,0+shift)       # top right
+			      )
+		
+	_elif !if_wmc_birdseye_direction! = "w"
+	_then
+		sec << sector.new_with(
+			       coordinate(0,0+shift),         # top left
+
+
+			       coordinate(0,height+shift),    # bottom left
+			       coordinate(256,height+shift),  # bottom right
+			       coordinate(256,0+shift),       # top right
+			       coordinate(0,0+shift),         # top left
+			       coordinate(0,height+shift)     # bottom_left
+			      )
+
+	_elif !if_wmc_birdseye_direction! = "e"
+	_then
+
+	_else 
+		sec << sector.new_with(
+			       coordinate(0,height+shift),    # bottom left
+			       coordinate(256,height+shift),  # bottom right
+			       coordinate(256,0+shift),       # top right
+			       coordinate(0,0+shift),         # top left
+			       coordinate(0,height+shift)     # bottom_left
+			      )
+	_endif
+
+	_return sec
+_endmethod
+$
+_pragma(classify_level=restricted, topic={VirtualEarth})
+## used to convert the nominal north-facing quadkey into a
+## suitable south, east or west quadkey.
+birdseye_rwo_record.define_shared_constant(:INT!QUADKEY_TRANSFORM,
+	equality_property_list.new_with("s",
+					property_list.new_with(%0,%3,
+							       %1,%2,
+							       %2,%1,
+							       %3,%0),
+					"e",
+					property_list.new_with(%0,%2,
+							       %1,%0,
+							       %2,%3,
+							       %3,%1),
+					"w",
+					property_list.new_with(%0,%1,
+							       %1,%3,
+							       %2,%0,
+							       %3,%2)
+			       ),
+	_false)
+$
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_method birdseye_rwo_record.tile_xy_to_quadkey(tx,ty,lod)
+	## 
+	## Return the quadkey for the tile [TX,TY] at level of detail LOD.
+	_dynamic !if_wmc_birdseye_direction!
+	
+	_local dir << !if_wmc_birdseye_direction!
+	
+	_local qk_for_location << _super.tile_xy_to_quadkey(tx,ty,lod)
+	_local qk_for_url
+	_local dir_url_param
+	
+	_if dir = "n"
+	_then
+		qk_for_url << qk_for_location
+	_else 
+		_local qk_transform << _self.INT!QUADKEY_TRANSFORM[dir]
+		
+		
+		qk_for_url << qk_for_location.map(_proc(a_char)
+							  _import qk_transform
+							  >> qk_transform[a_char]
+						  _endproc)
+	_endif
+
+	dir_url_param << write_string("&dir=dir_",dir)
+
+	_return write_string(qk_for_location,"|",qk_for_url,"|",dir_url_param)
+_endmethod
+$
+birdseye_rwo_record.define_shared_constant(:INT!QUADKEY_LAT_SHIFT,equality_hash_table.new(),:private)
+$
+_pragma(classify_level=restricted)
+_method birdseye_rwo_record.quadkey_lat_shift_cache()
+	## quadkey_lat_shift_cache() : equality_hash_table
+
+	_return _self.INT!QUADKEY_LAT_SHIFT
+_endmethod
+$
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_method birdseye_rwo_record.lat_shift_for_bounds(ll_bounds)
+	## lat_shift_for_bounds(bounding_box LL_BOUNDS) : float
+	##
+	## returns the lat_shift for the area covered by LL_BOUNDS.
+
+	# figure out which single parent quadkey covers the entire LL_BOUNDS.
+	_local covering_quadkey << _self.covering_quadkey(ll_bounds)
+
+	# once we have that quadkey, then figure out if we have a
+	# lat_shift cached for it.
+	_local cache << _self.quadkey_lat_shift_cache()
+	_local lat_shift << cache[covering_quadkey]
+	
+	# if not, then move up the quadkey pyramid until we find a
+	# cached lat_shift.
+	_if lat_shift _is _unset 
+	_then
+		_for idx _over range(covering_quadkey.size,1,-1)
+		_loop
+			_local quadkey << covering_quadkey.slice(1,idx)
+			_if (lat_shift << cache[quadkey]) _isnt _unset
+			_then
+				#write("found lat_shift (",lat_shift,") for quadkey (",quadkey,")")
+				_leave
+			_endif 
+		_endloop
+		
+	_endif
+
+	# if no cached lat_shift was found at all, get the lat_shift
+	# based on the LL_BOUNDS centre and assign it to the covering
+	# quadkey, cache it and return it.
+	_if lat_shift _is _unset 
+	_then
+		_local centre << ll_bounds.centre
+		lat_shift << _self.lat_shift_for_elevation(if_ve_acp.ele(centre.x,centre.y))
+
+		_if _not covering_quadkey.empty?
+		_then
+			cache[covering_quadkey] << lat_shift
+		_endif
+	_endif
+
+	_dynamic !if_wmc_birdseye_direction!
+
+	_local direction_factor << 1.0
+
+	_if !if_wmc_birdseye_direction! = "s"
+	_then
+		direction_factor << -1.0
+	_endif
+	
+	_return lat_shift * direction_factor
+_endmethod
+$
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_private _method birdseye_rwo_record.lat_shift_for_elevation(elevation)
+	## lat_shift_for_elevation(unit_value ELEVATION) : float
+	##
+	## given ELEVATION, return a suitable lat_shift value.  This is
+	## done based on an empirically-calculated formula and will
+	## likely require some user tweaking at that location.
+
+	_local elevation_m << elevation.value_in(:m)
+	
+	# we use the following formulas to figure out the BirdsEye
+	# latitude shift based on the elevation in the map view.
+	_if elevation_m <= 300
+	_then
+		_return (-0.0000049690829956 * elevation_m) - 0.0005026183928
+	_else
+		_return (-0.000008858465999 * elevation_m) - 0.00036605847272
+	_endif
+
+	
+_endmethod
+$
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_method birdseye_rwo_record.set_lat_shift(lat_shift,ll_bb)
+	## set_lat_shift(float LAT_SHIFT,
+	##               bounding_box LL_BB) : _unset
+	##
+	## sets LAT_SHIFT into a suitable cache entry based on LL_BB.
+	## Any cached entries for quadkeys entirely withing LL_BB will
+	## be removed.
+
+	# figure out which single parent quadkey covers the entire
+	# LL_BB bounds.
+	_local covering_quadkey << _self.covering_quadkey(ll_bb)
+
+	_if covering_quadkey.empty?
+	_then
+		condition.raise(:birdseye_lat_shift_zoom_in)
+	_endif
+	# then figure out which current cache keys can be removed
+	_local cache << _self.quadkey_lat_shift_cache()
+
+	_local match_string << write_string(covering_quadkey,"*")
+	_for a_key _over cache.fast_keys()
+	_loop
+		_if a_key.matches?(match_string)
+		_then
+			cache.remove_key(a_key)
+		_endif
+	_endloop
+	
+	cache[covering_quadkey] << lat_shift
+_endmethod
+$
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_method birdseye_rwo_record.save_lat_shift_cache_to_file(filename)
+	## save_lat_shift_cache_to_file(string FILENAME) : _unset
+	##
+	## saves the current lat_shift cache to FILENAME
+
+	_dynamic !print_float_precision! << 12
+	
+	_local str << external_text_output_stream.new(filename)
+
+	_protect
+		_for k,v _over _self.quadkey_lat_shift_cache().fast_keys_and_elements()
+		_loop
+			str.write(k,"|",v)
+			str.newline()
+		_endloop
+		
+	_protection
+		str.close()
+	_endprotect
+_endmethod
+$
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_method birdseye_rwo_record.load_lat_shift_cache_from_file(filename)
+	## load_lat_shift_cache_from_file(string FILENAME) : _unset
+	##
+	## populates the current lat_shift cache with data from FILENAME
+
+	_local a_line , sv
+
+	_local temp_cache << equality_hash_table.new()
+
+	_local str << external_text_input_stream.new(filename)
+
+	_protect
+		_loop
+			_if (a_line << str.get_line()) _is _unset 
+			_then
+				_leave
+			_endif
+
+			sv << a_line.split_by(%|)
+			
+			temp_cache[sv.first] << sv.last.as_number()
+		_endloop
+	_protection
+		str.close()
+	_endprotect
+
+	_local cache << _self.quadkey_lat_shift_cache()
+	_local original_size << cache.size
+	_local new_size << temp_cache.size
+	cache.empty()
+
+	cache.add_all(temp_cache)
+
+	condition.raise(:birdseye_cache_load_successful,
+			:old_size,original_size,
+			:new_size,new_size)
+
+_endmethod
+$
+
+
+
+

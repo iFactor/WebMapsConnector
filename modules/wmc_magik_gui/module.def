@@ -1,0 +1,14 @@
+wmc_magik_gui	4100
+
+description
+	Web Maps Connector GUI that requires other necessary WMC modules
+end
+
+requires
+	wmc_som
+	wmc_map_chooser
+	wmc_route_finder
+	map_animator
+	canvas_comparer
+	google_streetview
+end

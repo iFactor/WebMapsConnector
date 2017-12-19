@@ -1,0 +1,420 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+def_slotted_exemplar(:wmc_dataset,
+		    {},
+		    {:transient_dataset})
+$
+_pragma(classify_level=advanced, usage={redefinable})
+## DATASET_NAME : symbol
+##
+## the name of the WMC Dataset.  This is necessary to link the
+## WMC Dataset's SOC definition with a suitable
+## transient_dataset.DATASET_INSTANCE_METADATA definition.
+wmc_dataset.define_shared_constant(:DATASET_NAME,
+				  :wmc_dataset,
+				  _false)
+$
+_pragma(classify_level=advanced, usage={redefinable})
+## MERCATOR_COORDINATE_SYSTEM : coordinate_system
+##
+## The coordinate system corresponding to the WMC Mercator
+## Coordinate System.  This is referenced in
+## transient_dataset.DATASET_INSTANCE_METADATA definition. 
+wmc_dataset.define_shared_constant(:MERCATOR_COORDINATE_SYSTEM,
+				  coordinate_system.new(transform.new_proj(property_list.new_with(:proj,:merc,
+												  :lon_0,"0W",
+												  :lat_ts,"0N",
+												  :k,"1.0",
+												  :a,wmc_rwo_record.EARTH_RADIUS)),
+							:coord_ndec,5,
+							:name,:wmc_mercator_spherical_metre,
+							:external_cs_name,"Web Maps Connector",
+							:description,"WMC Mercator Spherical (metre) coordinate system used for overlaying the WMC tiles on other data.",
+							:group,"Web Maps Connector",
+							:in_cs_menus?,_true),
+				  _false)
+$
+_pragma(classify_level=advanced, usage={redefinable})
+## LONGLAT_COORDINATE_SYSTEM : coordinate_system
+##
+## The coordinate system corresponding to the WMC Long/Lat
+## Coordinate System.
+wmc_dataset.define_shared_constant(:LONGLAT_COORDINATE_SYSTEM,
+				  coordinate_system.new_proj_long_lat(:wgs84,:degree),
+				  _false)
+$
+_pragma(classify_level=basic)
+## external_name : string
+_method wmc_dataset.external_name
+	
+	_return message_handler.new(_self.DATASET_NAME).human_string(:external_name)
+_endmethod
+$
+_pragma(classify_level=basic)
+_method wmc_dataset.view_name
+	_return _self.external_name
+_endmethod
+$
+
+
+_pragma(classify_level=advanced, topic={universal_rwo}, usage={subclassable})
+_method wmc_dataset.max_zoom_level(a_collection)
+	
+	_return 21
+_endmethod
+$
+_pragma(classify_level=advanced, topic={universal_rwo}, usage={subclassable})
+_method wmc_dataset.min_zoom_level(a_collection)
+	
+	_return 1
+_endmethod
+$
+
+
+_pragma(classify_level=advanced, topic={universal_rwo}, usage={subclassable})
+_private _method wmc_dataset.connect( connect_spec )
+	## 
+	## Subclass this method to connect to the actual database,
+	## create the collections and populate the .collections,
+	## and .field_types slots.
+	##
+	## CONNECT_SPEC is a connect spec in the form specified by the
+	## dataset manager's .default_connect_spec, which should
+	## contain sufficient information for the connection to be
+	## made.
+	##
+	## This default implementation calls self.open_collections()
+	##
+	## Nothing returned.
+	##
+
+	_super.connect(connect_spec)
+
+	_self.int!set_external_names()
+	
+_endmethod
+$
+
+
+_pragma(classify_level=basic)
+_method wmc_dataset.int!set_external_names()
+	## int!set_external_names() : _unset
+	##
+	## sets the external names for self, all its collections and
+	## their fields.
+
+	_local mh << message_handler.new(_self.dataset_name)
+
+	_if mh.has_message?(:self)
+	_then
+		_self.external_name << mh.human_string(:self)
+		
+	_elif mh.has_message?(:external_name)
+	_then
+		_self.external_name << mh.human_string(:external_name)
+		
+	_endif
+
+	_local tab_desc
+	
+	_for a_collection _over _self.collections.fast_elements()
+	_loop
+		tab_desc << a_collection.descriptor
+
+		mh << message_handler.new(a_collection.name)
+
+		_if mh.has_message?(:self)
+		_then
+			tab_desc.external_name << mh.human_string(:self)
+		_endif
+
+		_for a_fd _over tab_desc.all_fields.fast_elements()
+		_loop
+			_if mh.has_message?(a_fd.name)
+			_then
+				a_fd.external_name << mh.human_string(a_fd.name)
+			_endif
+		_endloop
+	_endloop
+	
+_endmethod
+$
+_method wmc_dataset.open_collection(collection_name)
+	## 
+	## Don't try to open COLLECTION_NAME if it is already open. 
+	_local name << symbol.check_type(collection_name)
+	_if _self.collection(name) _is _unset 
+	_then
+		_return _super.open_collection(name)
+	_endif
+_endmethod
+$
+_pragma(classify_level=basic)
+_method wmc_dataset.add_collection(name,a_collection)
+	## 
+	##
+	_super.add_collection(name,a_collection)
+
+	
+	_local collection_names_to_populate << rope.new()
+
+	_for k,info _over _self.DATASET_INSTANCE_METADATA[_self.DATASET_NAME][:collections].fast_keys_and_elements()
+	_loop
+		# look to see if we have at least one geometry field of type :wmc_tile
+		_local ok? << _false
+
+		_if info[:fields] _is _unset 
+		_then
+			_continue
+		_endif
+		
+		_for field_name , field_info _over info[:fields].fast_keys_and_elements()
+		_loop
+			_if field_info[1] _is :geometry _andif
+			    field_info[2] _is :wmc_tile
+			_then
+				ok? << _true
+				_leave
+			_endif
+		_endloop
+
+		_if ok?
+		_then
+			collection_names_to_populate.add_last(k)
+		_endif
+	_endloop
+	
+	_if collection_names_to_populate.includes?(name)
+	_then
+		_self.populate_tile_collection(a_collection)
+	_endif
+_endmethod
+$
+_pragma(classify_level=basic)
+_method wmc_dataset.populate_tile_collection(a_collection)
+	## 
+	## 
+
+	_local det_rec << wmc_rwo_record.new_for_collection(a_collection)
+
+	det_rec.id << 1
+
+	_local a_rec << a_collection.insert(det_rec)
+	
+	_for a_fd _over a_rec.geometry_fields()
+	_loop
+		a_rec.perform(a_fd.name.with_chevron,wmc_tile.new(a_fd,_unset))
+	_endloop
+_endmethod
+$
+
+_pragma(classify_level=basic)
+_method wmc_dataset.gis_world
+	## gis_world : int!world
+	##
+	## returns self.world.  This method is provided for
+	## compatibility with PNI.
+
+	_return _self.world
+	
+_endmethod
+$
+
+_pragma(classify_level=restricted, topic={universal_rwo},usage={subclassable})
+_iter _method wmc_dataset.scan_elements( bounds, _optional select_filter, rwo_predicates )
+	##
+        ## Yields geometries overlapping BOUNDS.
+	##
+	## The optional SELECT_FILTER can be a list of geometry field
+        ## descriptors. If specifed, this restricts the scan to 
+	## those geometries in the list. 
+	##
+	## RWO_PREDICATES is a hash_table keyed on rwo type. If
+	## specified, geometry belonging to the RWO types included in
+	## this table will be yielded only if the owning RWO satisfies the
+	## predicate. NOT implemented on this class!!!
+	##
+	## This default implementation is extremely inefficient.
+	##
+	## Subclass this method to do efficient spatial scanning.
+	##
+	## Updates
+	## 03/04/2003 : Bounds with _unset value is handled.
+	## 10/09/2004 : Implements filtering on rwo_predicates
+	##
+	##
+	## THIS IS A COPY OF universal_dataset.scan_elements().  That
+	## method had a problem in it where it did not recognize two
+	## field_descriptors for the same field but taken from
+	## different dataset (one the original and one a Replica).
+	## This subclass corrects that.
+	
+	all_collections << .collections
+
+	_if select_filter _is _unset
+	_then
+		scan_collections << all_collections
+	_else
+		scan_collections << hash_table.new()
+		
+		_for a_geom_field _over select_filter.fast_elements()
+		_loop
+			t_name << a_geom_field.owner.name
+			_if all_collections[t_name ] _isnt _unset
+			_then
+				scan_collections[t_name] << all_collections[t_name]
+			_endif
+		_endloop 
+	_endif
+	
+	_for a_collection _over scan_collections.fast_elements()
+	_loop
+		geom_fields << a_collection.descriptor.geometry_fields
+
+		_if rwo_predicates _isnt _unset
+		_then
+			pred << rwo_predicates [ a_collection.name ]
+		_endif
+
+		_if select_filter _is _unset
+		_then
+			scan_fields << geom_fields
+		_else
+			# START CHANGE
+			#
+			# iFactor Consulting
+			_local canonicalize_fd << _proc(a_fd)
+							  # convert A_FD into a symbol so that we can do correct checking
+							  # in SCAN_FIELDS
+							  >> write_string(a_fd.owner.name,"-",a_fd.name).as_symbol()
+						  _endproc
+			
+			_local select_filter_names << select_filter.map(_proc(a_fd)
+										_import canonicalize_fd
+										
+										>> canonicalize_fd(a_fd)
+									_endproc)
+
+			# END CHANGE
+			scan_fields << keyed_set.new()
+
+			_for a_field _over geom_fields.fast_elements()
+			_loop
+				# START CHANGE
+                                # 
+				# this :includes?() check does not seem to work when comparing
+				# the same field_descriptors that were generated from a main
+				# and Replica view, respectively.  To get around this, we do a
+				# comparison based on a canonicalized form of the
+				# field_descriptor.
+                                #_if select_filter.includes?( a_field )
+				_if select_filter_names.includes?( canonicalize_fd(a_field) )
+				# END CHANGE
+				_then
+					scan_fields.add( a_field )
+				_endif
+			_endloop
+		_endif 
+
+		_if scan_fields.size > 0
+		_then
+			_if bounds _isnt _unset 
+			_then 
+				_for r _over a_collection.fast_elements()
+				_loop
+					_if pred _isnt _unset _andif
+					    pred.test? ( r ) _isnt _true
+					_then
+						_continue
+					_endif
+					
+					_for gf _over scan_fields.elements()
+					_loop
+						_if ( a_geom << r.perform( gf.name )) _isnt _unset _andif
+					    	bounds.intersection( a_geom.bounds ) _isnt _unset 
+						_then
+							_loopbody( a_geom )
+						_endif 
+					_endloop 
+				_endloop
+			_else 
+				_for r _over a_collection.fast_elements()
+				_loop
+					_if pred _isnt _unset _andif
+					    pred.test? ( r ) _isnt _true
+					_then
+						_continue
+					_endif
+					
+					_for gf _over scan_fields.elements()
+					_loop
+						_if ( a_geom << r.perform( gf.name )) _isnt _unset 
+						_then
+							_loopbody( a_geom )
+						_endif 
+					_endloop 
+				_endloop
+			_endif 
+		_endif
+	_endloop 
+	
+_endmethod
+$
+_pragma(classify_level=advanced, topic={universal_rwo})
+_method wmc_dataset.geometry_exemplar( geom_type )
+	## 
+	## Returns the exemplar wich is used for geometry of the given
+	## GEOM_TYPE.
+	##
+
+	_local new_geom_type << !current_package![_self.geometry_types[symbol.check_type(geom_type)]]
+
+	_if new_geom_type _is _unset 
+	_then
+		# if we cannot find the type in !current_package!, then have a
+		# look in the :user package.  The :user package is the one that
+		# contains the WMC-specific geometry types.
+		new_geom_type << package.all_packages[:user][_self.geometry_types[symbol.check_type(geom_type)]]
+	_endif
+
+	_return new_geom_type 
+_endmethod
+$
+_pragma(classify_level=advanced, topic={universal_rwo})
+_iter _method wmc_dataset.geometry_within_radius(_gather args)
+	## geometry_within_radius(gather args) : _unset
+	##
+	## for compatibility with other systems.  There typically is no
+	## geometry in any WMC_DATASET that should be found by the
+	## system using this API, so we simply return _unset 
+
+	_return _unset 
+_endmethod
+$
+_pragma(classify_level=restricted)
+_method wmc_dataset.table_changes_to(another, _optional want_conflicts?)
+	# Create a dummy method to return no changes, so that quality manager checks can run
+  _return {}
+_endmethod
+$

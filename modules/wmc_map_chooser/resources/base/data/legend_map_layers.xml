@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="windows-1252" standalone="yes"?>
+<serial_xml_thing format="1">
+	<keyed class="sw:property_list" size="2">
+		<entry key="bing_dataset">
+			<indexed class="sw:simple_vector" size="1">
+				<symbol>traffic_tile</symbol>
+			</indexed>
+		</entry>
+		<entry key="weatherbug_dataset">
+			<indexed class="sw:simple_vector" size="1">
+				<symbol>doppler_radar</symbol>
+			</indexed>
+		</entry>
+	</keyed>
+</serial_xml_thing>

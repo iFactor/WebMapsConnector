@@ -1,0 +1,20 @@
+wmc_som_test	4100
+
+description
+	Web Maps Connector SOM test module
+end
+
+requires
+	munit_base
+	munit_registration
+end
+
+tests_modules
+	wmc_som
+end
+
+test
+	name       wmc_som_test
+	framework  munit
+	args       wmc_som_test
+end

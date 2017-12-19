@@ -1,0 +1,96 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+
+bing_dataset.define_shared_constant(:DATASET_INSTANCE_METADATA,
+	property_list.new_with(
+		bing_dataset.DATASET_NAME,
+		property_list.new_with(
+			:collections, property_list.new_with(
+					      :geocode_result,
+					      property_list.new_with(
+						      :fields,property_list.new_with(
+								      :id, {:physical, :extdb_char, :key, 32,:external_name, "Object ID"},
+								      :display,{:physical,:extdb_char,:key,256},
+								      :confidence,{:physical,:extdb_char,:nonman,256},
+								      :original_query,{:physical,:extdb_char,:man,256},
+								      :location, {:geometry, :simple_point,:man}
+									    ),
+						      :exemplar,bing_geocode_result,
+						      :external_name,message_handler.new(:bing_geocode_result).human_string(:self)
+							    ),
+					      
+					      :road_tile,
+					      property_list.new_with(
+						      :fields,property_list.new_with(:id, {:physical, :ds_int, :key, _unset,:external_name, "Object ID"},
+										     :tile, {:geometry, :wmc_tile,:nonman}
+									    ),
+						      :exemplar,bing_rwo_record,
+						      :external_name,message_handler.new(:road_tile).human_string(:self)
+							    ),
+					      
+					      :road_tile_transparent,
+					      property_list.new_with(
+						      :fields,property_list.new_with(:id, {:physical, :ds_int, :key, _unset,:external_name, "Object ID"},
+										     :tile, {:geometry, :wmc_tile,:nonman}
+									    ),
+						      :exemplar,bing_rwo_record,
+						      :external_name,message_handler.new(:road_tile_transparent).human_string(:self)
+							    ),
+					      
+					      :traffic_tile,
+					      property_list.new_with(
+						      :fields,property_list.new_with(:id, {:physical, :ds_int, :key, _unset,:external_name, "Object ID"},
+										     :tile, {:geometry, :wmc_tile,:nonman}
+									    ),
+						      :exemplar,bing_rwo_record,
+						      :external_name,message_handler.new(:traffic_tile).human_string(:self)
+							    ),
+					      
+					      :aerial_tile,
+					      property_list.new_with(
+						      :fields,property_list.new_with(:id, {:physical, :ds_int, :key, _unset,:external_name, "Object ID"},
+										     :tile, {:geometry, :wmc_tile,:nonman}
+									    ),
+						      :exemplar,bing_rwo_record,
+						      :external_name,message_handler.new(:aerial_tile).human_string(:self)
+							    ),		   
+					      
+					      :aerial_labelled_tile,
+					      property_list.new_with(
+						      :fields,property_list.new_with(:id, {:physical, :ds_int, :key, _unset,:external_name, "Object ID"},
+										     :tile, {:geometry, :wmc_tile,:nonman}
+									    ),
+						      :exemplar,bing_rwo_record,
+						      :external_name,message_handler.new(:aerial_tile).human_string(:self)
+							    )
+					      
+						    ),
+			:world_metadata, property_list.new_with(:name,:gis,
+								:id, 0,
+								:coordinate_system, bing_dataset.MERCATOR_COORDINATE_SYSTEM
+						       )
+			      )
+		      ),_false)
+
+$

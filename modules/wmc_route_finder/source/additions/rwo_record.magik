@@ -1,0 +1,70 @@
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+########################################################################
+##
+## Created By: Greg Cahill, iFactor Consulting
+## Date: 18-Mar-2010
+##
+##
+## Description: 
+##
+## ---------- Revision History -----------
+##
+## -------- end revision history ---------
+########################################################################
+
+
+_pragma(classify_level=advanced, topic={wmc_route_finder}, usage={subclassable})
+_method rwo_record.description_for_route_finder(_optional rev_geocode?)
+	## Backstop method to return a string for use in the WMC Route Finder
+	## rev_geocode? is true if the reverse-geocoded address should
+	## be appened to the description.  Note that this will take longer.
+
+	_dynamic !current_coordinate_system!
+
+	_if !current_coordinate_system! _is _unset 
+	_then
+		!current_coordinate_system! << wmc_dataset_manager.custom_coordinate_system()
+	_endif
+	
+	rev_geocode? << rev_geocode?.default(_false)
+	
+	a_str << _super.description_for_route_finder()
+	
+	_if rev_geocode? _andif
+	    if_ve_acp _isnt _unset _andif
+	    gis_program_manager.cached_dataset(bing_dataset.DATASET_NAME) _isnt _unset
+	_then
+		tr << transform.new_converting_cs_to_cs(!current_coordinate_system!,
+							bing_dataset.LONGLAT_COORDINATE_SYSTEM)
+	
+		ll_coord << tr.convert(_self.geometries(_false).an_element().a_coord())
+		(result,success?) << if_ve_acp.get_reverse_geocode_for_lat_long(ll_coord.y,
+										ll_coord.x)
+		_if success?
+		_then
+			a_str << "".concatenation(a_str, " @ ", result)
+		_endif
+	_endif
+
+	_return a_str
+
+_endmethod
+$

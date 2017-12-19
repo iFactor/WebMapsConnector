@@ -1,0 +1,6 @@
+<editors base="cam_db_swaf_professional_application.collection_config.xml" >
+    <collection dataset_name = "webcam_dataset" 
+	    	collection_name = "webcam_camera"
+		config_file_name = "wmc_som.webcam_editor_config">
+	       </collection> 
+</editors>

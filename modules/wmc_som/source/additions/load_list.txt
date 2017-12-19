@@ -1,0 +1,6 @@
+#% text_encoding = iso8859_1
+
+viewport_layout
+map_view
+wmc_object_editor_field_lister
+graphics_context

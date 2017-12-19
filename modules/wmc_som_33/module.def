@@ -1,0 +1,10 @@
+wmc_som_33	3300
+
+description
+	Web Maps Connector SOM code for Smallworld 3.3
+end
+
+requires
+	# don't put any "requires" in here. The code in souce folder will
+	# load the appropriate modifications AND THEN will load module wmc_som
+end

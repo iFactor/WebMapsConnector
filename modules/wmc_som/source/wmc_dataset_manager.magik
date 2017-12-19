@@ -1,0 +1,266 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+def_slotted_exemplar(:wmc_dataset_manager,
+	        {
+			{:instance,_unset}
+		},:uds_manager)
+$
+wmc_dataset_manager.define_shared_constant( :DATASET_EXEMPLAR,
+                                             wmc_dataset,
+                                             :private )
+$
+wmc_dataset_manager.define_shared_constant( :DATASET_EXEMPLAR_NAME,
+                                             :wmc_dataset,
+                                             :private )
+$
+wmc_dataset_manager.define_shared_constant( :DRAWING_PRIORITY,
+ 	                                    property_list.new_with(:road_tile,-5,
+								   :aerial_tile,-5,
+								   :geocode_result,10),
+					    :private)
+$
+_pragma(classify_level=restricted, topic={dataset_manager})
+##
+## Declares whether the ve_dataset supports the
+## subject/oberver mechanism.
+##
+## In this case, returns _false.
+wmc_dataset_manager.define_shared_constant( :notifies_observers?, _false, :public )
+$
+_pragma(classify_level=restricted, topic={dataset_manager}, usage={subclassable})
+_method wmc_dataset_manager.startup()
+	## startup() : wmc_dataset_manager
+	##
+
+	# initialise the ACP now so we don't need to do it later. 
+	if_ve_acp.start_executable()
+	
+	if_ve_acp.verify_net_framework()
+	
+	_local dsm << _self.new(_self.DATASET_EXEMPLAR_NAME,_unset,proj)
+	dsm.open({})
+	dataset << dsm.actual_dataset
+		
+	.instance << dsm
+
+	_self.switch_ace_visibility()
+	
+	>> dsm
+_endmethod
+$
+
+_pragma(classify_level=advanced, usage={subclassable})
+_method wmc_dataset_manager.dataset
+	## dataset : ve_dataset or _unset
+
+	
+	
+	_if .instance _is _unset 
+	_then
+		_return _unset
+	_else
+		_return .instance.actual_dataset
+	_endif
+_endmethod
+$
+
+
+_pragma(classify_level=basic)
+_method wmc_dataset_manager.switch_ace_visibility(_optional ace_name, update_ace?)
+	##
+	## If UPDATE_ACE? is true then make dataset visible for all
+	## scales in ace with ACE_NAME and commit the ace changes.
+	##
+
+	_dynamic !if_ve_ace_name!
+
+	_constant DRAWING_PRIORITY << _self.DRAWING_PRIORITY
+	
+	_local write? , chg?
+	_local ace_view
+	_local visible?, hittable?, selectable?
+	
+	_if update_ace? _isnt _false
+	_then 
+		ace_name << ace_name.default(!if_ve_ace_name!).default("default")
+		
+		_if (current_ace << gis_program_manager.ace(ace_name)) _is _unset
+		_then
+			condition.raise(:warning, :string, _self.message(:unknown_ace, _unset, ace_name))
+		_else 
+			_if _not (write? << (ace_view << gis_program_manager.ace_view).writable?)
+			_then
+				(chg?, write?) << ace_view.switch(:write)
+			_endif
+			
+			_if write?
+			_then
+				_local current_id << current_ace.id
+				_local ace_rwo_table << current_ace.dataset_rwo_table
+				_local ace_app_table << current_ace.dataset_app_access_table
+				_local dataset_name << _self.dataset.name
+				_local ace_vis_table << ace_view.collections[:sw_gis!dataset_visibility]
+				_local rwo_vis_table << ace_view.collections[:sw_gis!dataset_vhs]
+				_local (rwo_seq,level,type) << (0,0,0)
+				
+				_local sort_proc << _proc(table1, table2)
+							    >> table1.external_name < table2.external_name
+						    _endproc
+				
+				_local sorted_user_tables << sorted_collection.new(_unset, sort_proc)
+				
+				ace_rwo_table.remove_all_at(current_id, dataset_name)
+				ace_app_table.remove_all_at(current_id, dataset_name)
+
+				_for a_collection _over _self.dataset.user_tables()
+				_loop
+					_if a_collection.responds_to?(:geometry_fields)
+					_then
+						sorted_user_tables.add(a_collection)
+					_endif 
+				_endloop
+
+				_local rwo_name , r , geom_seq , sorted_geom_fields
+				
+				_for a_collection _over sorted_user_tables.fast_elements()
+				_loop
+					rwo_name << a_collection.name
+					r << ace_rwo_table.insert({current_id,
+								   dataset_name,
+								   rwo_seq+<<1,
+								   level,
+								   type,
+								   rwo_name,
+								   0,
+								   ""})
+					geom_seq << 0
+					sorted_geom_fields << sorted_collection.new(_unset, sort_proc)
+					_for a_geom_field _over a_collection.geometry_fields.fast_elements()
+					_loop
+						sorted_geom_fields.add(a_geom_field)
+					_endloop 
+					
+					_for geometry_field _over sorted_geom_fields.fast_elements()
+					_loop
+						ace_app_table.insert({current_id,
+								      dataset_name,
+								      rwo_name,
+								      geom_seq+<<1,
+								      geometry_field.name,
+								      0,
+								      "geom_field_editor"})
+					_endloop
+				_endloop
+				
+				_for scale _over current_ace.scales.elements()
+				_loop
+					ace_vis << ace_vis_table.at(current_id, scale.id, dataset_name)
+					_if ace_vis _is _unset
+					_then
+						ace_vis << ace_vis_table.insert({current_id,
+										 scale.id,
+										 dataset_name,
+										 ace_view.uvas[:sw_gis!ace_id].get()})
+					_endif 
+					
+					ace_vis_id << ace_vis.vis_id
+					_for a_collection _over sorted_user_tables.fast_elements()
+					_loop
+						rwo_name << a_collection.name
+
+						(visible?,hittable?,selectable?) <<
+							_if rwo_name _is :geocode_result
+							_then
+								>> (_true,_true,_true)
+							_else
+								>> (_false,_false,_false)
+							_endif
+
+						rwo_vis_table.remove_all_at(ace_vis_id, rwo_name)
+						_for geometry_field _over a_collection.geometry_fields.fast_elements()
+						_loop
+							rwo_vis_table.insert({ace_vis_id,
+									      rwo_name,
+									      geometry_field.app_type,
+									      DRAWING_PRIORITY[rwo_name].default(0),
+									      visible?,
+									      hittable?,
+									      selectable? })
+						_endloop 
+					_endloop		
+				_endloop
+			_else
+				condition.raise(:warning, :string, _self.message(:ace_view_readonly))
+			_endif
+		_endif
+	_endif 
+_endmethod
+$
+_pragma(classify_level=advanced)
+## a cache used when no application coordinate system is
+## available. 
+wmc_dataset_manager.define_shared_variable(:INT!CUSTOM_COORDINATE_SYSTEM_CACHE,
+	_unset,
+	:private)
+$
+_pragma(classify_level=restricted, topic={universal_rwo}, usage={internal})
+_method wmc_dataset_manager.custom_coordinate_system()
+	## custom_coordinate_system() : coordinate_system
+	##
+	## recreates the coordinate system from
+	## self.module_name/resources/base/data/custom_coordinate_system.xml 
+	
+	_local cs 
+	_if (cs << _self.INT!CUSTOM_COORDINATE_SYSTEM_CACHE) _is _unset 
+	_then
+		_local fn << smallworld_product.get_data_file("custom_coordinate_system.xml",_self.module_name)
+		cs << serial_xml_thing.read_thing_from(fn)
+		
+		_self.INT!CUSTOM_COORDINATE_SYSTEM_CACHE << cs
+	_endif
+
+	_return cs
+	
+_endmethod
+$
+
+
+_pragma(classify_level=restricted, topic={universal_rwo}, usage={internal})
+_method wmc_dataset_manager.render_in(a_graphics_view,_gather args)
+	## a subclass of uds_dataset_manager that is required for WMC
+	## to work in 'classic' mode.
+	
+	_dynamic !current_coordinate_system!
+
+	_if !current_coordinate_system! _is _unset
+	_then
+		!current_coordinate_system! << _self.custom_coordinate_system()
+	_endif 
+
+	_dynamic !current_rendering_context! << a_graphics_view
+	_dynamic !ve_connector_current_map_view! << a_graphics_view
+
+	_return _super.render_in(a_graphics_view,_scatter args)
+_endmethod 
+$

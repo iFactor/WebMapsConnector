@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="windows-1252" standalone="yes"?>
+<serial_xml_thing format="1">
+	<slotted class="coordinate_system" size="14">
+		<name>
+			<string>usa_texas_central_nad83_cm</string>
+		</name>
+		<external_cs_name>
+			<string>Texas Central [4203] nad83 (cm)</string>
+		</external_cs_name>
+		<abbrev>
+			<string></string>
+		</abbrev>
+		<description>
+			<string></string>
+		</description>
+		<root_name>
+			<string>wgs84</string>
+		</root_name>
+		<coord_ndec>
+			<number>0</number>
+		</coord_ndec>
+		<group>
+			<string>namerica</string>
+		</group>
+		<in_cs_menus>
+			<atomic>false</atomic>
+		</in_cs_menus>
+		<datum_name>
+			<symbol>namerica_nad83</symbol>
+		</datum_name>
+		<false_origin_x>
+			<string>(21875*2.0**5)</string>
+		</false_origin_x>
+		<false_origin_y>
+			<string>(46875*2.0**6)</string>
+		</false_origin_y>
+		<proj_type>
+			<symbol>lcc</symbol>
+		</proj_type>
+		<proj_params>
+			<keyed class="hash_table" size="6">
+				<entry key="lat_0">
+					<string>29.6666666667</string>
+				</entry>
+				<entry key="lat_2">
+					<string>30.1166666667</string>
+				</entry>
+				<entry key="lon_0">
+					<string>-100.333333333</string>
+				</entry>
+				<entry key="a">
+					<string>6378137</string>
+				</entry>
+				<entry key="rf">
+					<string>298.257222101</string>
+				</entry>
+				<entry key="lat_1">
+					<string>31.8833333333</string>
+				</entry>
+			</keyed>
+		</proj_params>
+		<unit_name>
+			<symbol>cm</symbol>
+		</unit_name>
+	</slotted>
+</serial_xml_thing>

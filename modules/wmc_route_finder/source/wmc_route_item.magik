@@ -1,0 +1,321 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+
+########################################################################
+##
+## Created By: Greg Cahill, iFactor Consulting
+## Date: 10-Nov-2009
+##
+##
+## Description: A route instruction resulting from the WMC
+## Route Request.
+##
+## ---------- Revision History -----------
+##
+## -------- end revision history ---------
+########################################################################
+
+
+_pragma(classify_level=restricted, topic={wmc_route_finder})
+def_slotted_exemplar(:wmc_route_item,
+        {},
+	{:wmc_rwo_record}
+	)
+$
+
+_block
+	_for i_dataset _over {bing_dataset,
+			      google_dataset,
+			      mapquest_dataset}.fast_elements()
+	_loop
+		i_dataset.dataset_instance_metadata[i_dataset.DATASET_NAME][:collections][:wmc_route_item] <<
+			property_list.new_with(
+				:fields, property_list.new_with(
+						 :id, {:physical, :extdb_char, :key, 32, :external_name, "Object ID"},
+						 :latitude, {:physical, :ds_float, :nonman},
+						 :longitude, {:physical, :ds_float, :nonman},
+						 :distance, {:physical, :ds_float, :nonman},
+						 :time, {:physical, :ds_float, :nonman},
+						 :text, {:physical, :extdb_char, :nonman, 256},
+						 :location, {:geometry, :simple_point, :nonman}
+						       ),
+				:exemplar, wmc_route_item,
+				:external_name, "Route Item"
+				      )
+	_endloop
+_endblock
+$
+
+_pragma(classify_level=basic, topic={wmc_route_finder})
+_method wmc_route_item.get_table()
+	## Return self's collection
+	##
+
+	>> _self.get_collection(:wmc_route_item)
+_endmethod
+$
+_pragma(classify_level=basic, topic={wmc_route_finder})
+_method wmc_route_item.get_collection(collection_name)
+	## get_collection(symbol COLLECTION_NAME) : collection
+	##
+	## returns a suitable collection based on
+	## if_ve_acp.geocoding_api_vendor_name
+
+	_local dataset_name << (if_ve_acp.geocoding_api_vendor_name + :_dataset).as_symbol()
+
+	# now we need to check if dataset_instance_metadata has already
+	# been added
+	
+	_return gis_program_manager.cached_dataset(dataset_name).collections[collection_name]
+_endmethod
+$
+
+
+
+_pragma(classify_level=restricted, topic={wmc_route_finder})
+_method wmc_route_item.new_from_results(route_results_entry, id)
+	##
+	##
+
+	dist_unit << dist_unit.default(:mile)
+	
+	_dynamic !current_world!
+	_dynamic !current_coordinate_system! << bing_dataset.longlat_coordinate_system
+
+	_if route_results_entry[:location] _is _unset 
+	_then
+		route_results_entry[:location] << coordinate(0,0)
+	_endif
+	
+	prop_vals << property_list.new_with(
+			     :id, id,
+			     :latitude, (lat << route_results_entry[:location].y),
+			     :longitude, (long << route_results_entry[:location].x),
+			     :distance, route_results_entry[:distance].convert_to(:mile),
+			     :time, route_results_entry[:time].seconds,
+			     :text, "".concatenation("<VirtualEarth:Route>",
+			     			     route_results_entry[:text],
+			     			     "</VirtualEarth:Route>")
+				   )
+	_if !current_world! _isnt _unset
+	_then
+		a_coord << coordinate.new(long, lat)
+		prop_vals[:location] << pseudo_point.new_for_world(a_coord, !current_world!)
+	_endif 
+
+	>>  record_transaction.new_insert(_self.get_table(),prop_vals).run()
+
+_endmethod
+$
+
+_pragma(classify_level=restricted, topic={wmc_route_finder})
+_method wmc_route_item.parse_text(xml_txt)
+	## Parse the elements out of the XML
+	##
+
+	a_pl << property_list.new()
+	a_strm << internal_text_input_stream.new(xml_txt)
+	_for e _over simple_xml.read_elements_from(a_strm, :level, 2)
+	_loop
+		a_tag << e.type.write_string.split_by(%:)[2].as_symbol()
+		a_pl[a_tag] << e.elements.an_element()
+	_endloop
+
+	>> a_pl
+	
+_endmethod
+$
+
+_pragma(classify_level=restricted, topic={wmc_route_finder})
+_method wmc_route_item.get_tag(xml_tag)
+	## Return all text for the given tag from self's text.
+	##
+
+	a_rope << rope.new()
+	a_strm << internal_text_input_stream.new(_self.text)
+	a_strm.string.substitute_character(%&, %+)
+	_for e _over simple_xml.read_elements_from(a_strm, :level, 2)
+	_loop
+		_if (a_tag << e.type.write_string.split_by(%:).last.as_symbol()) _is xml_tag
+		_then
+			a_rope.add(e.elements.an_element())
+		_endif 
+	_endloop
+
+	>> a_rope
+	
+_endmethod
+$
+
+_pragma(classify_level=restricted, topic={wmc_route_finder})
+_method wmc_route_item.get_direction()
+	## Returns direction from text instruction, if any
+	##
+
+	>> _self.get_tag(:|TurnDir|).an_element()
+
+_endmethod
+$
+
+_pragma(classify_level=basic, topic={wmc_route_finder})
+_method wmc_route_item.waypoint?
+	## Returns true if self is a waypoint
+	##
+
+	>> _self.get_tag(:|WaypointName|).an_element() _isnt _unset
+_endmethod
+$
+
+_pragma(classify_level=basic, topic={wmc_route_finder})
+_method wmc_route_item.start?
+	## Returns true if self is the start
+	##
+
+	>> (a_act << _self.get_tag(:|Action|).an_element()) _isnt _unset _andif
+		a_act = "Depart"
+		
+_endmethod
+$
+
+_pragma(classify_level=advanced, topic={wmc_route_finder})
+wmc_route_item.define_shared_constant(
+	:xml_type_colors,
+	property_list.new_with(:text, :black,
+			       :default, :darkgreen,
+			       :|VirtualEarth:Action|, :black,
+			       :|VirtualEarth:TurnDir|, :red,
+			       :|VirtualEarth:WaypointName|, :mediumblue),
+	_false)
+$
+
+_pragma(classify_level=advanced, topic={wmc_route_finder})
+_method wmc_route_item.styled_string(_optional a_image, dist_unit)
+	## Returns a styled string for self
+	##
+
+	_dynamic !print_float_precision! << 2
+
+	dist_unit << dist_unit.default(:mile)
+	
+	a_rope << rope.new()
+	_if a_image _isnt _unset
+	_then a_rope.add_all_last({:image, a_image})
+	_endif
+	_if (a_dir << _self.get_direction()) _isnt _unset
+	_then
+		a_image << (_if a_dir = "right"
+			    _then >> :arrow_right_turn
+			    _elif a_dir = "left"
+			    _then >> :arrow_left_turn
+			    _else >> :arrow_forward
+			    _endif )
+
+		# for some reason, self.module_name was returning _unset, so we
+		# need to call :module_name on the exemplar directly.
+		a_rope.add_all_last({:image, {a_image, wmc_route_item.module_name}})
+	_endif
+
+	# Parse the text
+	default_color << _self.xml_type_colors[:default]
+	_for e _over simple_xml.read_element_string(_self.text).elements.fast_elements()
+	_loop
+		_if e.class_name _is :simple_xml_thing
+		_then
+			a_rope.add(_self.xml_type_colors[e.type].default(default_color))
+			a_rope.add_all_last(e.elements)
+		_else
+			a_rope.add_all_last({_self.xml_type_colors[:text], e})
+		_endif
+			
+	_endloop 
+
+	a_dist << unit_value.new(_self.distance, :mile).convert_to(dist_unit)
+	a_rope.add_all_last({:black, ", ", a_dist})
+
+	>> styled_string.new(_scatter a_rope.as_simple_vector())
+
+_endmethod
+$
+
+_pragma(classify_level=advanced, topic={wmc_route_finder})
+_method wmc_route_item.write_on(a_stream)
+	## Write self on a_stream
+	##
+
+	# Parse the text
+	_for e _over simple_xml.read_element_string(_self.text).elements.fast_elements()
+	_loop
+		_if e.class_name _is :simple_xml_thing
+		_then
+			a_stream.write(_scatter e.elements)
+		_else
+			a_stream.write(e)
+		_endif
+		a_stream.write(space_char)
+	_endloop 
+
+_endmethod
+$
+
+_pragma(classify_level=advanced, topic={wmc_route_finder})
+_method wmc_route_item.style_data_for_app_type(app_code, _optional style_name)
+	## Return values for the style system
+	##
+
+	_return property_list.new_with(
+			:style_method, :style_selector|()|,
+			:strings, {"Start",
+				   "End",
+				   "Waypoint",
+				   "Straight",
+				   "Right Turn",
+				   "Left Turn",
+				   "U-turn"},
+			:numbers, {1, 2, 3, 4, 5, 6, 7}
+			)
+
+_endmethod
+$
+
+_pragma(classify_level=advanced, topic={wmc_route_finder})
+_method wmc_route_item.style_selector()
+	## Return values for the style system
+	##
+
+	>> _if _self.start?
+	   _then >> 1
+	   _elif _self.waypoint?
+	   _then >> 3
+	   _elif (a_dir << _self.get_direction()) _isnt _unset
+	   _then
+		   >> _if a_dir = "right"
+		      _then >> 5
+		      _elif a_dir = "left"
+		      _then >> 6
+		      _else >> 7
+		      _endif
+	   _else >> 7
+	   _endif
+_endmethod
+$

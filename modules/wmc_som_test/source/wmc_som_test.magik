@@ -1,0 +1,228 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+
+_pragma(classify_level=debug, usage={redefinable})
+## tests the wmc_som module
+def_slotted_exemplar(:wmc_som_test,{},{:test_case})
+$
+_pragma(classify_level=debug, usage={redefinable})
+_method wmc_som_test.test_bing_reverse_geocode
+	## tests that the Bing reverse_geocode works correctly.
+
+	_self.assert(_self.reverse_geocode_helper("bing",49.6759162148429,18.2324830561798).size > 0,"Couldn't find an expected result")
+
+_endmethod
+$
+_pragma(classify_level=debug, usage={redefinable})
+_method wmc_som_test.test_google_reverse_geocode
+	## tests that the Google reverse_geocode works correctly.
+
+	_self.assert(_self.reverse_geocode_helper("google",49.6759162148429,18.2324830561798).size > 0,"Couldn't find an expected result")
+
+_endmethod
+$
+_pragma(classify_level=debug, usage={redefinable})
+_method wmc_som_test.test_mapquest_reverse_geocode
+	## tests that the Mapquest reverse_geocode works correctly.
+
+	_self.assert(_self.reverse_geocode_helper("mapquest",49.6759162148429,18.2324830561798).size > 0,"Couldn't find an expected result")
+
+_endmethod
+$
+_pragma(classify_level=debug, usage={redefinable})
+_method wmc_som_test.test_bing_geocode
+	## tests that the Bing geocode works correctly.
+
+	_self.assert(_self.geocode_helper("bing","80305").size > 0,"Couldn't find an expected result")
+
+_endmethod
+$
+_pragma(classify_level=debug, usage={redefinable})
+_method wmc_som_test.test_google_geocode
+	## tests that the Google geocode works correctly.
+
+	_self.assert(_self.geocode_helper("google","80305").size > 0,"Couldn't find an expected result")
+
+_endmethod
+$
+_pragma(classify_level=debug, usage={redefinable})
+_method wmc_som_test.test_mapquest_geocode
+	## tests that the Mapquest geocode works correctly.
+
+	_self.assert(_self.geocode_helper("mapquest","80305").size > 0,"Couldn't find an expected result")
+
+_endmethod
+$
+_pragma(classify_level=debug, usage={redefinable})
+_method wmc_som_test.geocode_helper(vendor,query)
+	
+	_local api_vendor_name << if_ve_acp.geocoding_api_vendor_name
+	_local results
+	
+	_protect
+		_if if_ve_acp.geocoding_api_vendor_name <> vendor
+		_then
+			if_ve_acp.geocoding_api_vendor_name << vendor
+		_endif
+		
+		results << if_ve_acp.get_geocode(query)
+	_protection
+
+		_if if_ve_acp.geocoding_api_vendor_name <> api_vendor_name
+		_then
+			if_ve_acp.geocoding_api_vendor_name << api_vendor_name
+		_endif
+	_endprotect
+
+	_return results
+_endmethod
+$
+_pragma(classify_level=debug, usage={redefinable})
+_method wmc_som_test.reverse_geocode_helper(vendor,lat,lng)
+	
+	_local api_vendor_name << if_ve_acp.geocoding_api_vendor_name
+	_local results
+	
+	_protect
+		_if if_ve_acp.geocoding_api_vendor_name <> vendor
+		_then
+			if_ve_acp.geocoding_api_vendor_name << vendor
+		_endif
+		
+		results << if_ve_acp.get_reverse_geocode_for_lat_long(lat,lng)
+	_protection
+
+		_if if_ve_acp.geocoding_api_vendor_name <> api_vendor_name
+		_then
+			if_ve_acp.geocoding_api_vendor_name << api_vendor_name
+		_endif
+	_endprotect
+
+	_return results
+_endmethod
+$
+_pragma(classify_level=debug, usage={redefinable})
+_method wmc_som_test.test_bing_route
+	## tests that the Bing route works correctly.
+
+	_local pw << pseudo_world.new(coordinate_system.new_proj_long_lat(:wgs84,:degree))
+	
+	_local waypoints << {property_list.new_with(:location,pseudo_point.new_for_world(coordinate(-123.19439,49.262518),pw)),
+			     property_list.new_with(:location,pseudo_point.new_for_world(coordinate(-97.231631,49.857071),pw))}
+
+	_local results << _self.route_helper("bing",waypoints)
+	
+	_self.assert((results[:total_time].seconds / 3600.0) > 23,"Couldn't find an expected result")
+
+_endmethod
+$
+_pragma(classify_level=debug, usage={redefinable})
+_method wmc_som_test.test_google_route
+	## tests that the Google route works correctly.
+
+	_local pw << pseudo_world.new(coordinate_system.new_proj_long_lat(:wgs84,:degree))
+	
+	_local waypoints << {property_list.new_with(:location,pseudo_point.new_for_world(coordinate(-123.19439,49.262518),pw)),
+			     property_list.new_with(:location,pseudo_point.new_for_world(coordinate(-97.231631,49.857071),pw))}
+	
+	_local results << _self.route_helper("google",waypoints)
+	
+	_self.assert((results[:total_time].seconds / 3600.0) > 23,"Couldn't find an expected result")
+
+_endmethod
+$
+_pragma(classify_level=debug, usage={redefinable})
+_method wmc_som_test.test_mapquest_route
+	## tests that the Mapquest route works correctly.
+
+	_local pw << pseudo_world.new(coordinate_system.new_proj_long_lat(:wgs84,:degree))
+	
+	_local waypoints << {property_list.new_with(:location,pseudo_point.new_for_world(coordinate(-123.19439,49.262518),pw)),
+			     property_list.new_with(:location,pseudo_point.new_for_world(coordinate(-97.231631,49.857071),pw))}
+	
+	_local results << _self.route_helper("mapquest",waypoints)
+	
+	_self.assert((results[:total_time].seconds / 3600.0) > 23,"Couldn't find an expected result")
+
+_endmethod
+$
+_pragma(classify_level=debug, usage={redefinable})
+_method wmc_som_test.route_helper(vendor,waypoints)
+
+	_local api_vendor_name << if_ve_acp.geocoding_api_vendor_name
+	_local results
+	
+	_protect
+		_if if_ve_acp.geocoding_api_vendor_name <> vendor
+		_then
+			if_ve_acp.geocoding_api_vendor_name << vendor
+		_endif
+		
+		results << if_ve_acp.get_route_request(_scatter waypoints)
+	_protection
+
+		_if if_ve_acp.geocoding_api_vendor_name <> api_vendor_name
+		_then
+			if_ve_acp.geocoding_api_vendor_name << api_vendor_name
+		_endif
+	_endprotect
+
+	_return results
+_endmethod
+$
+_pragma(classify_level=debug, usage={redefinable})
+_method wmc_som_test.test_memory_canvas
+	## tests that memory_canvas caching and destroying is working
+	## correctly. 
+
+	# first, clear the cache
+	_local cache << if_ve_acp.sys!perform(:int!memory_canvas_cache)
+	_for i_mc _over cache.fast_elements()
+	_loop
+		i_mc.destroy()
+	_endloop
+
+	cache.empty()
+
+	_protect
+		_for x _over range(1000,2000,100)
+		_loop
+			_for y _over range(1000,2000,200)
+			_loop
+				if_ve_acp.int!get_memory_canvas_for(x,y,1.3)
+			_endloop
+		_endloop
+	_protection
+
+		# clear the cache when we are done, too.
+		_for i_mc _over cache.fast_elements()
+		_loop
+			i_mc.destroy()
+		_endloop
+		
+		cache.empty()
+	_endprotect
+	
+_endmethod
+$
+

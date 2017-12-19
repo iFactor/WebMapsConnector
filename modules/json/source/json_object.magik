@@ -1,0 +1,86 @@
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+#% text_encoding = cp1252
+_package sw
+$
+_pragma(classify_level=basic)
+## inherits from equality_hash_table but is made to behave a
+## bit more like a JavaScript Object.  Whereas in Magik, a hash
+## table's key can only be accessed using [], in JavaScript,
+## the key can be accessed with dot notation, similar to
+## calling a method in Magik
+def_slotted_exemplar(:json_object,{},{:equality_hash_table})
+$
+_pragma(classify_level=basic)
+_method json_object.does_not_understand(a_message,private?)
+	## subclassed to assume that A_MESSAGE.selector is actually a
+	## key self.
+	_return _self[a_message.selector]
+_endmethod
+$
+_pragma(classify_level=basic)
+_method json_object.write_string
+	_local str << internal_text_output_stream.new()
+
+	_self.write_as_json(str)
+
+	_return str.string
+_endmethod
+$
+_pragma(classify_level=basic)
+_method json_object.write_on(a_stream)
+	_self.write_as_json(a_stream)
+_endmethod
+$
+
+
+
+_pragma(classify_level=basic)
+_method json_object.write_as_json(out_stream)
+
+	out_stream.write( "{" )
+	
+	_local first? << _true
+	
+	_for i_attribute_name,i_attribute_value _over _self.fast_keys_and_elements()
+	_loop
+		_if _not first?
+		_then
+			out_stream.write(",")
+		_else
+			first? << _false
+		_endif
+		
+		#  now write the key/value pairs
+		
+		out_stream.write( %",i_attribute_name,%",":" )
+		i_attribute_value.convert_to_json().write_as_json(out_stream)
+	_endloop
+	
+	out_stream.write( "}" )
+_endmethod
+$
+
+_pragma(classify_level=basic)
+_method json_object.convert_to_json()
+	_return _self 
+_endmethod
+$
+

@@ -1,0 +1,92 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package sw
+$
+
+################################################################
+##
+## p1000005.1_if_geometry_vector
+##
+## suppresses the "Box fit did not terminate" warning message
+## if it is raised as a result of drawing 
+##
+################################################################
+
+sw!patch_software("wmc_som",4100)
+$
+sw!patch_software("geometry_vector",1)
+$
+# patch p1000001.1_if_vec_map_plugin is the one that defines
+# _dynamic !ve_connector_current_map_view! and is the one that
+# we can use to determine whether or not to ignore the "Box fit
+# did not terminate" warning message.
+sw!patch_requires(1000005,"1_if_geometry_vector",1000001,"1_if_vec_map_plugin")
+$
+# use define_method_synonym() to wrap some of our behavior
+# around the core method without redefining the core behavior. 
+_if transform.method(:original!invert_bounding_box|()|) _is _unset 
+_then
+	transform.define_method_synonym(:original!invert_bounding_box|()|,:invert_bounding_box|()|)
+_endif
+$
+_pragma(classify_level=restricted)
+_method transform.invert_bounding_box(a_bb)
+	## 
+	## Returns the bounding_box that would result in A_BB when
+	## transformed by _self.
+	##
+	## Note that, if SELF contains any rotation or shear, the
+	## solution is not uniquely defined (can lie anywhere within a
+	## range of aspect ratios).
+
+	# START CHANGE
+	# (11/03/31 Alfred) :
+	# put a condition handler around the original
+	# invert_bounding_box() to suppress a specific warning
+	# condition in certain cases.  We are using the
+	# :define_method_synonym() approach so that we won't actually
+	# touch the core implementation of this method.  That will make
+	# this patch robust across versions/upgrades.
+	_handling warning _with
+	_proc(cond)
+		_dynamic !ve_connector_current_map_view!
+
+		_if !ve_connector_current_map_view! _isnt _unset _andif
+		    cond[:string] = "Box fit did not terminate"
+		_then
+			# suppress the condition if it was raised as a result of a map
+			# refresh.  The condition was just the generic :warning
+			# condition so we need to query the condition's :string
+			# property to determine if it is the one we are interested in. 
+			write("Ignoring 'Box fit did not terminate' warning message from transform.invert_bounding_box()...")
+		_else 	
+			cond.continue_handling()
+		_endif
+
+	_endproc
+	# END CHANGE
+
+	_return _self.original!invert_bounding_box(a_bb)
+_endmethod
+$
+sw!declare_patch(1000005,"1_if_geometry_vector","Box fit did not terminate warning message")
+$

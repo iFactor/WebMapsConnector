@@ -1,0 +1,248 @@
+#% text_encoding = cp1252
+########################################################################
+##
+## Last Saved Time-stamp: <2005-10-04 15:51:51 Brad.Sileo>
+##
+## Created By: Tony Sileo
+## Date: 10-04-2005
+## Copyright 2005 Tony Sileo
+##
+## This file is part of Magik Components for SWAF.
+##
+##     Magik Components for SWAF is free software; you can redistribute it and/or modify
+##     it under the terms of the GNU General Public License as published by
+##     the Free Software Foundation; either version 2 of the License, or
+##     (at your option) any later version.
+##
+##     Magik Components for SWAF is distributed in the hope that it will be useful,
+##     but WITHOUT ANY WARRANTY; without even the implied warranty of
+##     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+##     GNU General Public License for more details.
+##
+##     You should have received a copy of the GNU General Public License
+##     along with Magik Components for SWAF; if not, write to the Free Software
+##     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+##
+########################################################################
+_package mclib
+
+
+_pragma(classify_level=advanced, topic={tools}, usage={internal})
+##
+## Helper class, methods and procedures for converting number
+## to hexadecimal string and vice versa.
+##
+def_slotted_exemplar ( :hexadecimal,
+		       {
+			       { :number, _unset },
+			       { :string, _unset }
+		       } )
+$
+
+_pragma(classify_level=advanced, topic={tools}, usage={internal})
+hexadecimal.define_shared_constant ( :to_hex, "0123456789ABCDEF", _false )
+$
+
+_pragma(classify_level=advanced, topic={tools}, usage={internal})
+hexadecimal.define_shared_constant ( :to_dec, property_list.new_with (
+										 %0, 0,
+										 %1, 1,
+										 %2, 2,
+										 %3, 3,
+										 %4, 4,
+										 %5, 5,
+										 %6, 6,
+										 %7, 7,
+										 %8, 8,
+										 %9, 9,
+										 %A, 10,
+										 %B, 11,
+										 %C, 12,
+										 %D, 13,
+										 %E, 14,
+										 %F, 15 ), _false )
+$
+
+_pragma(classify_level=advanced, topic={tools}, usage={internal})
+_method hexadecimal.new ( a_thing )
+	## 
+	## 
+
+	_if a_thing.class_name _is :integer _orif
+	    a_thing.class_name _is :bignum
+	_then
+		_return _self.new_from_number ( a_thing )
+	_elif a_thing.class_name _is :char16_vector
+	_then
+		_return _self.new_from_string ( a_thing )
+	_endif
+	
+_endmethod
+$
+
+_pragma(classify_level=advanced, topic={tools}, usage={internal})
+_method hexadecimal.new_from_number ( a_number )
+	## 
+	## 
+
+	>> _clone.init_from_number ( a_number )
+	
+_endmethod
+$
+
+_pragma(classify_level=advanced, topic={tools}, usage={internal})
+_method hexadecimal.init_from_number ( a_number )
+	## 
+	## 
+
+	.number << a_number
+
+	s << ""
+	
+	_loop
+		_if a_number _is 0 
+		_then
+			_leave 
+		_endif
+
+		hex << a_number _mod 16
+
+		a_char << _self.to_hex [ hex + 1 ]
+		s << a_char + s
+
+		a_number << a_number.shift ( -4 )
+		
+	_endloop
+
+	.string << s
+	
+	>> _self
+	
+_endmethod
+$
+
+_pragma(classify_level=advanced, topic={tools}, usage={internal})
+_method hexadecimal.new_from_string ( a_string )
+	## 
+	## 
+
+	>> _clone.init_from_string ( a_string )
+	
+_endmethod
+$
+
+_pragma(classify_level=advanced, topic={tools}, usage={internal})
+_method hexadecimal.init_from_string ( a_string )
+	## 
+	## 
+
+	.string << a_string
+	
+	num << 0
+
+	_for i _over 1.upto ( a_string.size )
+	_loop
+		num << num.shift ( 4 )
+		num +<< _self.to_dec [ a_string [ i ] ]
+	_endloop
+
+	.number << num
+	
+	>> _self
+	
+_endmethod
+$
+
+_pragma(classify_level=advanced, topic={tools}, usage={internal})
+_method hexadecimal.number
+	## 
+	## 
+
+	>> .number.copy ()
+	
+_endmethod
+$
+
+_pragma(classify_level=advanced, topic={tools}, usage={internal})
+_method hexadecimal.string
+	## 
+	## 
+
+	>> .string.copy ()
+	
+_endmethod
+$
+
+_pragma(classify_level=advanced, topic={tools}, usage={internal})
+_method hexadecimal.write_on ( a_stream )
+	## 
+	## 
+
+	a_stream.write ( "hexadecimal(", .number, ",", .string, ")" )
+	
+_endmethod
+$
+
+
+_pragma(classify_level=advanced, topic={tools}, usage={internal})
+_method hexadecimal.show_on ( a_stream )
+	## 
+	## 
+
+	a_stream.write ( "hexadecimal(", .number, ",", .string, ")" )
+	
+_endmethod
+$
+
+
+_pragma(classify_level=advanced, topic={tools}, usage={internal})
+_global hex2number << _proc @hex2number ( a_string )
+	##
+	## Converts a string to a number
+	##
+
+	_return hexadecimal.new_from_string ( a_string ).number
+	
+_endproc
+$
+
+_pragma(classify_level=advanced, topic={tools}, usage={internal})
+_global number2hex << _proc @number2hex ( a_number )
+	##
+	## Converts a number to a hexadecimal string
+	##
+
+	_return hexadecimal.new_from_number ( a_number ).string
+	
+_endproc
+$
+
+_pragma(classify_level=advanced, topic={tools}, usage={internal})
+_global hex2bytes << _proc @hex2bytes ( a_string )
+	##
+	## Convert a string (containing hex values) to a byte vector
+	##
+
+	size << a_string.size
+	bv  << byte_vector.new ( size _div 2 )
+	key << 1
+	
+	_for i _over range ( 1, size, 4 )
+	_loop
+		v1 << hexadecimal.to_dec [ a_string [ i     ] ]
+		v2 << hexadecimal.to_dec [ a_string [ i + 1 ] ]
+		v3 << hexadecimal.to_dec [ a_string [ i + 2 ] ]
+		v4 << hexadecimal.to_dec [ a_string [ i + 3 ] ]
+
+		bv [ key ] << v1.shift ( 4 ) + v2
+		key +<< 1
+		
+		bv [ key ] << v3.shift ( 4 ) + v4
+		key +<< 1
+	_endloop
+
+	_return bv
+	
+_endproc
+$
+

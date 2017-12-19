@@ -1,0 +1,6 @@
+<config>
+  <plugins>
+    <plugin name="field_lister" class_name="wmc_object_editor_field_lister" />
+    <plugin name="rwo_specials" class_name="rwo_specials_plugin"/>
+  </plugins>
+</config>

@@ -1,0 +1,9 @@
+#% text_encoding = iso8859_1
+
+p1000001_1_if_vec_map_plugin
+p1000003_1_if_vec_layout_engine
+p1000004_1_if_map_service
+p1000005_1_if_geometry_vector
+p1000006_1_if_vec_map_plugin
+p1000008_1_if_map_components
+p1000009_1_if_classic_app

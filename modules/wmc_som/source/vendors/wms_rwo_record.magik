@@ -1,0 +1,64 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+def_slotted_exemplar(:wms_rwo_record,
+		    {
+			    {:base_url,_unset,:writable},
+			    {:parameters,_unset,:writable}
+		    },
+		    {:wmc_rwo_record})
+$
+
+wms_rwo_record.define_shared_constant(:DATASET_NAME,
+	:wms_dataset,
+	:private)
+$
+_method wms_rwo_record.init_extra_rendering_info()
+	## init_extra_rendering_info() : _unset
+	##
+	## sets self.EXTRA_RENDERING_INFO based on the contents of
+	## .base_url and .parameters
+
+	_local base_url << .base_url.split_by(%?).first
+
+	.parameters[:format]  << .parameters[:format].default("image/png")
+	.parameters[:service] << .parameters[:service].default("WMS")
+	.parameters[:request] << .parameters[:request].default("GetMap")
+	.parameters[:version] << .parameters[:version].default("1.1.0")
+	.parameters[:styles]  << .parameters[:styles].default("")
+
+	_local params_list << rope.new()
+	_for k,v _over .parameters.fast_keys_and_elements()
+	_loop
+		params_list.add_last(write_string(k.write_string.uppercase,"=",v))
+	_endloop
+	
+	_local rendering_info << write_string(base_url,"?",
+					      write_string_with_separator(params_list,%&))
+
+	_self.define_shared_variable(:EXTRA_RENDERING_INFO,rendering_info,:public)
+
+_endmethod
+$
+
+

@@ -1,0 +1,27 @@
+#% text_encoding = cp1252
+
+json_array
+json_object
+json_parser
+
+
+unset
+boolean
+ds_record
+rwo_record
+strings
+
+integral_number_mixin
+float
+gis_id
+stack
+sorted_collection
+queue
+
+basic_collection_mixin
+ordered_collection_mixin
+ro_simple_index_mixin
+rope_mixin
+dd_collection_mixin
+coordinate_mixin
+bounding_box_mixin

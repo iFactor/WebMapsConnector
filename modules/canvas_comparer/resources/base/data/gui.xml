@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="windows-1252" standalone="yes"?>
+<gui>
+	<work_area>
+		<plugin plugin_name="canvas_comparer"/>
+	</work_area>
+</gui>

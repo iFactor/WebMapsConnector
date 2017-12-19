@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--  config.xml for the SWAF Professional Application  -->
+<config base="cam_db_swaf_professional_application.config">
+    <plugins>
+	<plugin name="ve" class_name="user:ve_swaf_plugin">
+	    <properties>
+		<!-- Indicates whether the map view projection is automatically locked to  -->
+		<!-- Virtual Earth when any VE data is toggled ON by the user. (Default=False) -->
+		<property name="lock_to_virtual_earth_projection?" value="false"/>
+		
+		<!-- Indicates whether a check should be made for updates to this -->
+		<!-- product each time the plugin is started. (Default=True)  -->
+		<property name="auto_check_for_updates?" value="false"/>
+		
+	    </properties>
+	</plugin>
+	<plugin name="weather_map_animator" class_name="user:map_animator_plugin" />
+	<plugin name="wmc_route_finder" class_name="user:wmc_route_finder_plugin" />
+	<plugin name="wmc_map_chooser" class_name="user:wmc_map_chooser">
+	    <properties>
+		<!-- Indicates whether the map chooser canvas should have a -->
+		<!-- horizontal scrollbar (Default=False) -->
+		<property name="enable_horizontal_scrollbar?" value="true"/>
+
+		<!-- Indicates whether the map chooser canvas should have a -->
+		<!-- vertical scrollbar (Default=False) -->
+		<property name="enable_vertical_scrollbar?" value="true"/>
+		
+		<!-- Indicates whether the map chooser canvas should show  -->
+		<!-- the Opacity slider widget (Default=False) -->
+		<property name="enable_opacity_slider?" value="true"/>
+	    </properties>
+	</plugin>
+	<plugin name="wmc_map_chooser_plugin" class_name="user:wmc_map_chooser_plugin" />
+	<plugin name="panes" class_name="pane_manager">
+	    <properties>
+	        <!-- list of role names which, when assigned to elements of the gui, 
+		     will put them under the control of the pane_manager -->
+	        <property name="role_names" value="editor_manager, object_control, themes, viewers, wmc_map_chooser"/>
+	    </properties> 
+	</plugin>
+
+	<plugin name="canvas_comparer_plugin" class_name="user:canvas_comparer_plugin" />
+
+	<plugin name="google_streetview" class_name="user:google_streetview">
+	    <properties>
+		<property name="map_manager_name" value="maps"/>
+	    </properties>
+	</plugin>
+    </plugins>
+</config>

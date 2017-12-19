@@ -1,0 +1,370 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+
+########################################################################
+##
+## Last Saved Time-stamp:
+##
+## Created By: Greg Cahill, iFactor Consulting
+## Date: 09-Nov-2009
+##
+##
+## Description: A list of waypoints.  Extends rope functionality.
+##
+## ---------- Revision History -----------
+##
+## -------- end revision history ---------
+########################################################################
+
+
+_pragma(classify_level=restricted, topic={wmc_route_finder})
+def_slotted_exemplar(:wmc_waypoint_list,
+	{},
+	{:rope}
+	)
+$
+_pragma(classify_level=restricted, topic={wmc_route_finder})
+_method wmc_waypoint_list.safe_current_coordinate_system()
+	## if there is no !current_coordinate_system! set, then use one
+	## customized for the current installation.
+	
+	_import _dynamic !current_coordinate_system!
+
+	_if !current_coordinate_system! _is _unset 
+	_then
+		!current_coordinate_system! << wmc_dataset_manager.custom_coordinate_system()
+	_endif
+_endmethod
+$
+
+
+_pragma(classify_level=basic, topic={wmc_route_finder})
+_method wmc_waypoint_list.add_geom(a_geom, position)
+	## Add a waypoint for a_geom if not already in the list.
+	##
+	
+	_dynamic !current_coordinate_system! << a_geom.world.coordinate_system
+
+	_self.safe_current_coordinate_system()
+	
+	a_desc << (_if (a_rwo << a_geom.rwo) _isnt _unset
+		   _then >> a_geom.rwo.description_for_route_finder()
+		   _else >> a_geom.description_for_route_finder()
+		   _endif)
+	_if _not _self.includes?(a_wp << wmc_waypoint.new_for_geom(a_desc, a_geom))
+	_then
+		_if position _is :first
+		_then 
+			_self.add_first(a_wp)
+		_elif position _is :last
+		_then 
+			_self.add_last(a_wp)
+		_else
+			_self.add_nth(a_wp, position) 
+		_endif 
+	_endif
+_endmethod
+$
+
+_pragma(classify_level=basic, topic={wmc_route_finder})
+_method wmc_waypoint_list.add_coord(a_coord,a_world, position)
+	## Add a waypoint for a_coord if not already in the list.
+	##
+
+	_dynamic !current_coordinate_system! << a_world.coordinate_system
+
+	_self.safe_current_coordinate_system()
+
+	# need to have a suitably large print float precision so that
+	# the wmc_waypoint comparison compares accurate string
+	# representations of the coordinate.
+	_dynamic !print_float_precision! << 12
+	
+	a_desc << a_coord.write_string
+	_if _not _self.includes?(a_wp << wmc_waypoint.new_at_coord(a_desc, a_coord,a_world))
+	_then
+		_if position _is :first
+		_then 
+			_self.add_first(a_wp)
+		_elif position _is :last
+		_then 
+			_self.add_last(a_wp)
+		_else
+			_self.add_nth(a_wp, position) 
+		_endif 
+	_endif
+	
+_endmethod
+$
+
+_pragma(classify_level=basic, topic={wmc_route_finder})
+_method wmc_waypoint_list.includes?(compare_wp)
+	## Returns true if a_wp is already in the list.
+	##
+
+	_return (_for a_wp _over _self.fast_elements()
+		 _loop
+			 _if a_wp.cf(compare_wp) _is _maybe
+			 _then _leave _with _true
+			 _endif
+		 _finally
+			 _leave _with _false
+		 _endloop)
+
+_endmethod
+$
+
+_pragma(classify_level=basic, topic={wmc_route_finder})
+_method wmc_waypoint_list.move_waypts(keys, a_move)
+	## Moves the items at "keys" according to a_move, which can be:
+	## :up     - move one position up
+	## :down   - move one position down
+	## :top    - move to top of list
+	## :bottom - move to bottom of list
+
+	# Make sure the list is addressed in order (keys may not be
+	# sorted in order of position)
+	inds << rope.new()
+	last << _self.size
+	first << 1
+	_for ind _over range(first,last)
+	_loop
+		_for a_key _over keys.fast_elements()
+		_loop
+			_if _self[ind].description = a_key.description
+			_then
+				inds.add(ind)
+				_leave
+			_endif
+		_endloop
+	_endloop
+	_if {:down, :bottom}.includes?(a_move)
+	_then
+		inds << inds.reversed()
+	_endif
+	_for a_pos _over inds.fast_elements()
+	_loop
+		# Swap this waypoint and the one above it
+		_if a_move _is :up _andif
+		    a_pos > first
+		_then
+			temp << _self[a_pos-1] ^<< _self[a_pos]
+			_self[a_pos] << temp
+		_elif a_move _is :down _andif
+		      a_pos < last
+		_then
+			temp << _self[a_pos+1] ^<< _self[a_pos]
+			_self[a_pos] << temp
+		_elif a_move _is :top _andif
+		      a_pos _isnt first
+		_then
+			temp << _self[first] ^<< _self[a_pos]
+			_for k _over range(first+1,a_pos)
+			_loop
+				temp2 << _self[k] ^<< temp
+				temp << temp2
+			_endloop
+		_elif a_move _is :bottom _andif
+		      a_pos _isnt last
+		_then
+			temp << _self[last] ^<< _self[a_pos]
+			_for k _over range(last-1, a_pos, -1)
+			_loop
+				temp2 << _self[k] ^<< temp
+				temp << temp2
+			_endloop
+		_endif
+		first +<< 1
+		last -<< 1
+	_endloop
+_endmethod
+$
+
+_pragma(classify_level=basic, topic={wmc_route_finder})
+_method wmc_waypoint_list.add_roundtrip()
+	## Adds waypoints to make a roundtrip
+	##
+
+	_self.safe_current_coordinate_system()
+	
+	_self.add_last(_self.first)
+	
+_endmethod
+$
+
+_pragma(classify_level=basic, topic={wmc_route_finder})
+_method wmc_waypoint_list.sort(sort_type)
+	## Sort the list by the given method
+	##
+	_self.safe_current_coordinate_system()
+
+	_if sort_type _is :salesman
+	_then
+		_self.salesman_sort()
+	_endif
+	
+_endmethod
+$
+
+_pragma(classify_level=advanced, topic={wmc_route_finder})
+_method wmc_waypoint_list.salesman_sort()
+	## Sort the waypoint list in "travelling salesman" order
+	## 
+	_self.safe_current_coordinate_system()
+
+	pt << _self.create_tin()
+
+	# The travelling salesman sort chooses an arbitraty start.  We
+	# need to keep the "first" waypoint, so get the list and find
+	# the first waypoint.
+	a_route << rope.new_from_iter(pt, :travelling_salesman_path|()|)
+	first << (_for ind _over range(1,a_route.size)
+		  _loop
+			  _if a_route[ind].id _is 1 _then _leave _with ind _endif
+		  _endloop)
+
+	# If the "first" waypoint isnt' at index 1, chop up the route
+	_if first _isnt 1
+	_then
+		# First part of route
+		a_new_route << rope.new_from(a_route.subseq(first))
+
+		# Second part, reversed back to the beginning.
+		a_new_route.add_all_last(a_route.subseq(1,first-1)) #.reversed())
+		a_route << a_new_route
+	_endif
+
+	# Repopulate self from the resulting route
+	old_rope << _self.copy()
+	_self.empty()
+	_for p _over a_route.fast_elements()
+	_loop
+		_self.add(old_rope[p.id])
+	_endloop
+
+_endmethod
+$
+
+_pragma(classify_level=advanced, topic={wmc_route_finder})
+_method wmc_waypoint_list.as_display_trees()
+	## Return a rope of display trees for self's waypoints.
+	##
+	_self.safe_current_coordinate_system()
+	
+	a_rope << rope.new()
+	n_waypts << _self.size
+	_for a_key, a_wp _over _self.fast_keys_and_elements()
+	_loop
+		a_rope.add(a_wp.as_display_tree(a_key.write_string,
+						_if a_key _is 1
+						_then >> :start
+						_elif a_key _is n_waypts
+						_then >> :end
+						_else >> :intermediate_wp
+						_endif)
+		       )
+	_endloop
+
+	>> a_rope
+_endmethod
+$
+
+_pragma(classify_level=restricted, topic={wmc_route_finder})
+_method wmc_waypoint_list.create_tin()
+	## Create a TIN of the waypoints in the list
+	## 
+	_self.safe_current_coordinate_system()
+
+	pt << pseudo_triangulation.new()
+
+	_local min_x << bignum
+	_local min_y << bignum
+	
+	_for a_wp _over _self.fast_elements()
+	_loop
+		min_x << min_x.min(a_wp.location.x)
+		min_y << min_y.min(a_wp.location.y)
+	_endloop
+
+	_for a_wp _over _self.fast_elements()
+	_loop
+		_try
+			pt.add_site(a_wp.location.x - min_x,a_wp.location.y - min_y)
+		_when coincident_triangulation_site
+			## ignore
+		_endtry
+	_endloop
+
+	pt.triangulate()
+
+	>> pt
+
+_endmethod
+$
+
+_pragma(classify_level=basic, topic={wmc_route_finder})
+_method wmc_waypoint_list.write_on(a_strm)
+	## Write self on to the stream
+	##
+
+	# always save the coords as lat/long
+	_dynamic !current_coordinate_system! << wmc_dataset.longlat_coordinate_system
+	
+	_for a_wp _over _self.fast_elements()
+	_loop
+		a_wp.write_on(a_strm)
+	_endloop
+	
+_endmethod
+$
+
+_pragma(classify_level=basic, topic={wmc_route_finder})
+_method wmc_waypoint_list.new_from_stream(a_strm)
+	## Read the stream and create new list from it.
+	##
+
+	# assume that !current_coordinate_system! was set up in the
+	# plugin.  Also assume that the coords were stored as Lat/Long
+	# in the file 
+	_dynamic !current_coordinate_system!
+
+	_local tr << transform.new_converting_cs_to_cs(wmc_dataset.longlat_coordinate_system,
+						       !current_coordinate_system!)
+
+	a_list << _clone.new()	
+	_loop
+		_if (a_line << a_strm.get_line()) _is _unset
+		_then _leave _endif
+
+		a_vec << a_line.split_by(%|)
+		a_desc << a_vec[1]
+		a_coord << tr.convert(coordinate.new(a_vec[2].as_number(), a_vec[3].as_number()))
+
+		a_list.add_last(wmc_waypoint.new_at_coord(a_desc, a_coord))
+	_endloop
+
+	>> a_list
+	
+_endmethod
+$

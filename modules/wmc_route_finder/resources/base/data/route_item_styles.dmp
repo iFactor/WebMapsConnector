@@ -1,0 +1,933 @@
+#% text_encoding = utf8
+#Style Dump
+#V3.2
+_package sw
+
+_block
+!current_package!.define_variable(:bc,_unset)
+!current_package!.define_variable(:c,_unset)
+!current_package!.define_variable(:cbt,_unset)
+!current_package!.define_variable(:cell_ec,_unset)
+!current_package!.define_variable(:cell_nc,_unset)
+!current_package!.define_variable(:cell_vc,_unset)
+!current_package!.define_variable(:crs,_unset)
+!current_package!.define_variable(:crs?,_unset)
+!current_package!.define_variable(:fbc,_unset)
+!current_package!.define_variable(:fc,_unset)
+!current_package!.define_variable(:fd,_unset)
+!current_package!.define_variable(:ffc,_unset)
+!current_package!.define_variable(:g,_unset)
+!current_package!.define_variable(:gat,_unset)
+!current_package!.define_variable(:gc,_unset)
+!current_package!.define_variable(:gh,_unset)
+!current_package!.define_variable(:glt,_unset)
+!current_package!.define_variable(:gpt,_unset)
+!current_package!.define_variable(:grt,_unset)
+!current_package!.define_variable(:gtt,_unset)
+!current_package!.define_variable(:hc,_unset)
+!current_package!.define_variable(:l,_unset)
+!current_package!.define_variable(:lbt,_unset)
+!current_package!.define_variable(:lh,_unset)
+!current_package!.define_variable(:nd,_unset)
+!current_package!.define_variable(:np,_unset)
+!current_package!.define_variable(:r,_unset)
+!current_package!.define_variable(:rlt,_unset)
+!current_package!.define_variable(:rmit,_unset)
+!current_package!.define_variable(:rmt,_unset)
+!current_package!.define_variable(:rm_id,_unset)
+!current_package!.define_variable(:rst,_unset)
+!current_package!.define_variable(:sh,_unset)
+!current_package!.define_variable(:sid,_unset)
+!current_package!.define_variable(:sr,_unset)
+!current_package!.define_variable(:stk,_unset)
+!current_package!.define_variable(:sw,_unset)
+!current_package!.define_variable(:syt,_unset)
+!current_package!.define_variable(:t,_unset)
+!current_package!.define_variable(:tbt,_unset)
+!current_package!.define_variable(:xh,_unset)
+!current_package!.define_variable(:xlt,_unset)
+_endblock
+$
+rst << !current_dsview!.collections[:sw_gis!rwo_style]
+glt << !current_dsview!.collections[:sw_gis!gis_line_style]
+gat << !current_dsview!.collections[:sw_gis!gis_area_style]
+gtt << !current_dsview!.collections[:sw_gis!gis_text_style]
+gpt << !current_dsview!.collections[:sw_gis!gis_point_style]
+grt << !current_dsview!.collections[:sw_gis!gis_raster_style]
+syt << !current_dsview!.collections[:sw_gis!symbol_component]
+!loader!.n_read<<10
+$
+xlt << !current_dsview!.collections[:sw_gis!crosshatch_layer]
+cbt << colour_bundle_table.open(!current_dsview!,"default")
+cbt.bundle_for({100,0,0})
+lbt <<  !current_dsview!.collections[:sw_gis!line_bundle]
+tbt <<  !current_dsview!.collections[:sw_gis!text_bundle]
+rlt <<  !current_dsview!.collections[:sw_gis!raster_style_layer]
+rmt <<  !current_dsview!.collections[:sw_gis!range_map]
+rmit << !current_dsview!.collections[:sw_gis!range_map_item]
+!loader!.n_read<<20
+$
+
+lh << !style_load_caches!
+np << {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+nd << {0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0}
+stk << hash_table.new(10)
+
+_global crs << _proc @crs(table, style_name, rwo_name, app_name, style_type, scale, sub_code, geom_code,
+			  style_method, draw_method, style_id)
+		       _dynamic !overwrite_styles?!
+		       _dynamic !loader!
+
+		       m << _allresults !loader!.mapping_for(style_name, rwo_name, app_name, style_type, scale)
+
+		       _if m.size < 1 _then _return _endif
+		       v << m.concatenation(m, {sub_code, geom_code, style_method, draw_method, style_id, _unset })
+
+		       _if !overwrite_styles?!
+		       _then res << table.insert_or_update(v)
+		       _else res << table.insert(v)
+		       _endif
+		       _if res _isnt _unset _then !loader!.n_loaded+<<1 _endif
+_endproc
+$
+!loader!.n_read<<45
+$
+
+_global gh << _proc @gh(id)
+		       _global lh
+
+		       _for c _over lh.fast_elements()
+		       _loop
+		           _if (sid << c[id]) _isnt _unset _then _return sid _endif
+		       _endloop
+		       _return 0
+_endproc
+$
+!loader!.n_read<<58
+$
+
+_global sh << _proc @sh(id, sid)
+		       _global lh
+
+		       _local tc
+		       _for c _over lh.fast_elements()
+		       _loop
+		           _if c.size < 10000 _then tc << c; _leave _endif
+		       _finally
+		           lh.add_last(tc << equality_hash_table.new(500))
+		       _endloop
+		       _return (tc[id] << sid)
+_endproc
+$
+!loader!.n_read<<74
+$
+
+crs? << !loader!.create_sym?("arrowhead")
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+sw<<!current_dsview!.create_world("gis symbols","arrowhead",:units, :um)
+!current_world! << sw
+_endif
+!loader!.n_read<<84
+$
+!current_world!<<!current_dsview!.world("gis symbols","arrowhead")
+sr<<sector_rope.new_with(sector.new_with(coordinate(0.00000000000,0.00000000000)))
+fd<<!current_dsview!.geometry_field_for(:symbol_definition,:name)
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g<<text.new_with_sectors(fd,sr,"arrowhead")
+g.just<<22
+_endif
+!loader!.n_read<<95
+$
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g.meta_data_id<<0
+syt.insert({"arrowhead",1,6,g.text_id,0,_unset})
+_endif
+!loader!.n_read<<103
+$
+sr<<sector_rope.new_with(sector.new_with(coordinate(0.00000000000,0.00000000000)))
+fd<<!current_dsview!.geometry_field_for(:symbol_definition,:datum)
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g<<simple_point.new_with_sectors(fd,sr)
+_endif
+!loader!.n_read<<112
+$
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g.meta_data_id<<0
+syt.insert({"arrowhead",2,13,g.point_id,0,_unset})
+_endif
+!loader!.n_read<<120
+$
+sr<<sector_rope.new_with(sector.new_with(coordinate(-774823.000000,-227565.000000),coordinate(-774823.000000,233855.000000),
+coordinate(1533.00000000,233855.000000),coordinate(1533.00000000,-227565.000000),
+coordinate(-774823.000000,-227565.000000)))
+fd<<!current_dsview!.geometry_field_for(:symbol_definition,:boundary)
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g<<simple_area.new_with_sectors(fd,sr)
+_endif
+!loader!.n_read<<131
+$
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g.meta_data_id<<0
+syt.insert({"arrowhead",3,11,g.area_id,0,_unset})
+_endif
+!loader!.n_read<<139
+$
+sr<<sector_rope.new(1)
+sr[1]<<sector.new_with(coordinate(1533.00000000,-1418.00000000),coordinate(-46969.0000000,-4637.00000000))
+sr[1]<<sector.concatenation(sr[1],sector.new_with(coordinate(-96137.0000000,-9701.00000000),coordinate(-153538.000000,-17734.0000000),
+coordinate(-197823.000000,-25419.0000000),coordinate(-237984.000000,-33491.0000000),
+coordinate(-296637.000000,-47006.0000000),coordinate(-346105.000000,-60018.0000000),
+coordinate(-395880.000000,-74529.0000000),coordinate(-453762.000000,-93137.0000000),
+coordinate(-504702.000000,-111028.000000),coordinate(-558618.000000,-131482.000000),
+coordinate(-612755.000000,-153540.000000),coordinate(-612755.000000,-153540.000000),
+coordinate(-674070.000000,-180401.000000),coordinate(-725968.000000,-204631.000000),
+coordinate(-749254.000000,-216090.000000),coordinate(-772546.000000,-227565.000000),
+coordinate(-753360.000000,-183584.000000),coordinate(-728999.000000,-101232.000000),
+coordinate(-722441.000000,-62725.0000000),coordinate(-718497.000000,27437.0000000)))
+sr[1]<<sector.concatenation(sr[1],sector.new_with(coordinate(-726093.000000,89198.0000000),coordinate(-749114.000000,177313.000000),
+coordinate(-774823.000000,233855.000000),coordinate(-740268.000000,216653.000000),
+coordinate(-707499.000000,200882.000000),coordinate(-642619.000000,171369.000000),
+coordinate(-610788.000000,157641.000000),coordinate(-554220.000000,134597.000000),
+coordinate(-504152.000000,115645.000000),coordinate(-458417.000000,99444.0000000),
+coordinate(-410967.000000,83880.0000000),coordinate(-410967.000000,83880.0000000),
+coordinate(-342936.000000,63761.0000000),coordinate(-285600.000000,48899.0000000),
+coordinate(-217063.000000,33708.0000000),coordinate(-184924.000000,27913.0000000),
+coordinate(-152807.000000,22117.0000000),coordinate(-85972.0000000,12985.0000000),
+coordinate(-69018.0000000,10190.0000000),coordinate(1533.00000000,-1418.00000000)))
+
+fd<<!current_dsview!.geometry_field_for(:symbol_definition,:symbol_area)
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g<<simple_area.new_with_sectors(fd,sr)
+_endif
+!loader!.n_read<<170
+$
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+ffc<<cbt.bundle_for({0,0,0}).colour_id
+sh(4496,ffc)
+l<<lbt.insert({_unset,"solid",np,"butt","miter",0,_unset}).line_id
+sh(291995,l)
+sid<<glt.insert({_unset,"",nd,l,gh(4496),0,_unset}).style_id
+sh(291996,sid)
+sid<<gat.insert({_unset,"",nd,_true,0,"",ffc,0,_true,sid,_false,0,_unset}).style_id
+sh(291997,sid)
+g.meta_data_id<<sid
+syt.insert({"arrowhead",4,11,g.area_id,sid,_unset})
+_endif
+!loader!.n_read<<186
+$
+sid<<gpt.insert({_unset,"",nd,0,0,_false,1.0000000,0,{-775.00000,-228.00000,2.0000000,234.00000},
+1,"arrowhead",_unset}).style_id
+!loader!.n_read<<190
+$
+sh(385200,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","100",0,3,"style_selector()",
+"",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385249,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","100",1,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385255,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","100",2,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385261,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","100",3,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385267,sid)
+!loader!.n_read<<210
+$
+crs(rst,"Default","wmc_route_item","location","highlight","100",4,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385273,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","100",5,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385279,sid)
+!loader!.n_read<<220
+$
+crs(rst,"Default","wmc_route_item","location","highlight","100",6,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385285,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","100",7,3,"","",sid,_unset)
+crs(rst,"Default","wmc_route_item","location","highlight","5000",0,3,"style_selector()",
+"",gh(385200),_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385251,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","5000",1,3,"","",sid,_unset)
+$
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385257,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","5000",2,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+!loader!.n_read<<240
+$
+sh(385263,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","5000",3,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385269,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","5000",4,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+!loader!.n_read<<250
+$
+sh(385275,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","5000",5,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385281,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","5000",6,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+!loader!.n_read<<260
+$
+sh(385287,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","5000",7,3,"","",sid,_unset)
+crs(rst,"Default","wmc_route_item","location","highlight","600",0,3,"style_selector()",
+"",gh(385200),_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385250,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","600",1,3,"","",sid,_unset)
+!loader!.n_read<<270
+$
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385256,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","600",2,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385262,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","600",3,3,"","",sid,_unset)
+!loader!.n_read<<280
+$
+$
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385268,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","600",4,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385274,sid)
+!loader!.n_read<<290
+$
+crs(rst,"Default","wmc_route_item","location","highlight","600",5,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385280,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","600",6,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385286,sid)
+!loader!.n_read<<300
+$
+crs(rst,"Default","wmc_route_item","location","highlight","600",7,3,"","",sid,_unset)
+crs(rst,"Default","wmc_route_item","location","highlight","Auto",0,3,"style_selector()",
+"",gh(385200),_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385247,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","Auto",1,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385253,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","Auto",2,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385259,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","Auto",3,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385265,sid)
+!loader!.n_read<<320
+$
+crs(rst,"Default","wmc_route_item","location","highlight","Auto",4,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385271,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","Auto",5,3,"","",sid,_unset)
+$
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+!loader!.n_read<<330
+$
+sh(385277,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","Auto",6,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385283,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","Auto",7,3,"","",sid,_unset)
+crs(rst,"Default","wmc_route_item","location","highlight","Internals",0,3,"style_selector()",
+"",gh(385200),_unset)
+!loader!.n_read<<340
+$
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385252,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","Internals",1,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385258,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","Internals",2,3,"","",sid,_unset)
+!loader!.n_read<<350
+$
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385264,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","Internals",3,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385270,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","Internals",4,3,"","",sid,_unset)
+!loader!.n_read<<360
+$
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385276,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","Internals",5,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385282,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","Internals",6,3,"","",sid,_unset)
+!loader!.n_read<<370
+$
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385288,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","Internals",7,3,"","",sid,_unset)
+$
+crs(rst,"Default","wmc_route_item","location","highlight","Location Plan",0,3,"style_selector()",
+"",gh(385200),_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385248,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","Location Plan",1,3,"","",sid,
+_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385254,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","Location Plan",2,3,"","",sid,
+_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385260,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","Location Plan",3,3,"","",sid,
+_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385266,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","Location Plan",4,3,"","",sid,
+_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385272,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","Location Plan",5,3,"","",sid,
+_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385278,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","Location Plan",6,3,"","",sid,
+_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,0.0000000,0,{0.0000000,0.0000000,0.0000000,0.0000000},
+0,"",_unset}).style_id
+sh(385284,sid)
+crs(rst,"Default","wmc_route_item","location","highlight","Location Plan",7,3,"","",sid,
+_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,1.0000000,0,{-775.00000,-228.00000,2.0000000,234.00000},
+0,"arrowhead",_unset}).style_id
+sh(385199,sid)
+crs(rst,"Default","wmc_route_item","location","normal","100",0,3,"style_selector()","",
+sid,_unset)
+crs? << !loader!.create_sym?("waypoint")
+!loader!.n_read<<420
+$
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+sw<<!current_dsview!.create_world("gis symbols","waypoint",:units, :um)
+!current_world! << sw
+_endif
+!loader!.n_read<<428
+$
+!current_world!<<!current_dsview!.world("gis symbols","waypoint")
+sr<<sector_rope.new_with(sector.new_with(coordinate(0.00000000000,0.00000000000)))
+fd<<!current_dsview!.geometry_field_for(:symbol_definition,:name)
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g<<text.new_with_sectors(fd,sr,"waypoint")
+g.just<<22
+_endif
+!loader!.n_read<<439
+$
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g.meta_data_id<<0
+syt.insert({"waypoint",1,6,g.text_id,0,_unset})
+_endif
+!loader!.n_read<<447
+$
+sr<<sector_rope.new_with(sector.new_with(coordinate(0.00000000000,0.00000000000)))
+!loader!.n_read<<450
+$
+fd<<!current_dsview!.geometry_field_for(:symbol_definition,:datum)
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g<<simple_point.new_with_sectors(fd,sr)
+_endif
+!loader!.n_read<<458
+$
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g.meta_data_id<<0
+syt.insert({"waypoint",2,3,g.point_id,0,_unset})
+_endif
+!loader!.n_read<<466
+$
+sr<<sector_rope.new_with(sector.new_with(coordinate(-160.000000000,-43.0000000000),coordinate(-160.000000000,5000.00000000),
+coordinate(3000.00000000,5000.00000000),coordinate(3000.00000000,-43.0000000000),
+coordinate(-160.000000000,-43.0000000000)))
+fd<<!current_dsview!.geometry_field_for(:symbol_definition,:boundary)
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g<<simple_area.new_with_sectors(fd,sr)
+_endif
+!loader!.n_read<<477
+$
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g.meta_data_id<<0
+syt.insert({"waypoint",3,1,g.area_id,0,_unset})
+_endif
+!loader!.n_read<<485
+$
+sr<<sector_rope.new_with(sector.new_with(coordinate(0.00000000000,5000.00000000),coordinate(3000.00000000,5000.00000000),
+coordinate(3000.00000000,2457.00000000),coordinate(0.00000000000,2457.00000000),coordinate(0.00000000000,5000.00000000)))
+fd<<!current_dsview!.geometry_field_for(:symbol_definition,:symbol_area)
+!loader!.n_read<<490
+$
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g<<simple_area.new_with_sectors(fd,sr)
+_endif
+!loader!.n_read<<497
+$
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+ffc<<cbt.bundle_for({20,60,43}).colour_id
+sh(385210,ffc)
+l<<lbt.insert({_unset,"solid",np,"butt","miter",0,_unset}).line_id
+sh(4778,l)
+sid<<glt.insert({_unset,"",nd,l,gh(4496),0,_unset}).style_id
+sh(385211,sid)
+sid<<gat.insert({_unset,"",nd,_true,100,"",ffc,0,_true,sid,_false,0,_unset}).style_id
+sh(385209,sid)
+g.meta_data_id<<sid
+syt.insert({"waypoint",4,1,g.area_id,sid,_unset})
+_endif
+!loader!.n_read<<513
+$
+sr<<sector_rope.new_with(sector.new_with(coordinate(-160.000000000,4957.00000000),coordinate(160.000000000,4957.00000000),
+coordinate(160.000000000,-43.0000000000),coordinate(-160.000000000,-43.0000000000),
+coordinate(-160.000000000,4957.00000000)))
+fd<<!current_dsview!.geometry_field_for(:symbol_definition,:symbol_area)
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g<<simple_area.new_with_sectors(fd,sr)
+_endif
+!loader!.n_read<<524
+$
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+sid<<glt.insert({_unset,"",nd,gh(4778),gh(4496),0,_unset}).style_id
+sh(385213,sid)
+sid<<gat.insert({_unset,"",nd,_true,100,"",gh(4496),0,_true,sid,_false,0,_unset}).style_id
+sh(385212,sid)
+g.meta_data_id<<sid
+syt.insert({"waypoint",5,1,g.area_id,sid,_unset})
+_endif
+!loader!.n_read<<536
+$
+sid<<gpt.insert({_unset,"",nd,0,0,_false,10000.000,0,{-1600.0000,-430.00000,30000.000,50000.000},
+0,"waypoint",_unset}).style_id
+!loader!.n_read<<540
+$
+sh(385289,sid)
+crs(rst,"Default","wmc_route_item","location","normal","100",1,3,"","",sid,_unset)
+$
+sid<<gpt.insert({_unset,"",nd,0,0,_false,10000.000,0,{-1600.0000,-430.00000,30000.000,50000.000},
+0,"waypoint",_unset}).style_id
+sh(385290,sid)
+crs(rst,"Default","wmc_route_item","location","normal","100",2,3,"","",sid,_unset)
+gc<<cbt.bundle_for({0,0,100}).colour_id
+!loader!.n_read<<550
+$
+sh(17746,gc)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,10000.000,0,{-1600.0000,-430.00000,30000.000,50000.000},
+gc,"waypoint",_unset}).style_id
+sh(385291,sid)
+crs(rst,"Default","wmc_route_item","location","normal","100",3,3,"","",sid,_unset)
+crs? << !loader!.create_sym?("route_direction")
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+sw<<!current_dsview!.create_world("gis symbols","route_direction",:units, :um)
+!current_world! << sw
+_endif
+!loader!.n_read<<564
+$
+!current_world!<<!current_dsview!.world("gis symbols","route_direction")
+sr<<sector_rope.new_with(sector.new_with(coordinate(0.00000000000,0.00000000000)))
+fd<<!current_dsview!.geometry_field_for(:symbol_definition,:name)
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g<<text.new_with_sectors(fd,sr,"route_direction")
+g.just<<22
+_endif
+!loader!.n_read<<575
+$
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g.meta_data_id<<0
+syt.insert({"route_direction",1,6,g.text_id,0,_unset})
+_endif
+!loader!.n_read<<583
+$
+sr<<sector_rope.new_with(sector.new_with(coordinate(0.00000000000,0.00000000000)))
+fd<<!current_dsview!.geometry_field_for(:symbol_definition,:datum)
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g<<simple_point.new_with_sectors(fd,sr)
+_endif
+!loader!.n_read<<592
+$
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g.meta_data_id<<0
+syt.insert({"route_direction",2,3,g.point_id,0,_unset})
+_endif
+!loader!.n_read<<600
+$
+sr<<sector_rope.new_with(sector.new_with(coordinate(-774823.000000,-248612.000000),coordinate(-774823.000000,233855.000000),
+coordinate(28925.0000000,233855.000000),coordinate(28925.0000000,-248612.000000),
+coordinate(-774823.000000,-248612.000000)))
+fd<<!current_dsview!.geometry_field_for(:symbol_definition,:boundary)
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g<<simple_area.new_with_sectors(fd,sr)
+_endif
+!loader!.n_read<<611
+$
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g.meta_data_id<<0
+syt.insert({"route_direction",3,1,g.area_id,0,_unset})
+_endif
+!loader!.n_read<<619
+$
+sr<<sector_rope.new(1)
+sr[1]<<sector.new_with(coordinate(28925.0000000,-22465.0000000),coordinate(-19577.0000000,-25684.0000000))
+sr[1]<<sector.concatenation(sr[1],sector.new_with(coordinate(-68745.0000000,-30748.0000000),coordinate(-126146.000000,-38781.0000000),
+coordinate(-170431.000000,-46466.0000000),coordinate(-210592.000000,-54538.0000000),
+coordinate(-269245.000000,-68053.0000000),coordinate(-318713.000000,-81065.0000000),
+coordinate(-368488.000000,-95576.0000000),coordinate(-426370.000000,-114184.000000),
+coordinate(-477310.000000,-132075.000000),coordinate(-531226.000000,-152529.000000),
+coordinate(-585363.000000,-174587.000000),coordinate(-585363.000000,-174587.000000),
+coordinate(-646678.000000,-201448.000000),coordinate(-698576.000000,-225678.000000),
+coordinate(-721862.000000,-237137.000000),coordinate(-745154.000000,-248612.000000),
+coordinate(-725968.000000,-204631.000000),coordinate(-701607.000000,-122279.000000),
+coordinate(-695049.000000,-83772.0000000),coordinate(-691105.000000,6390.00000000)))
+sr[1]<<sector.concatenation(sr[1],sector.new_with(coordinate(-698701.000000,68151.0000000),coordinate(-721722.000000,156266.000000),
+coordinate(-747431.000000,212808.000000),coordinate(-712876.000000,195606.000000),
+coordinate(-680107.000000,179835.000000),coordinate(-615227.000000,150322.000000),
+coordinate(-583396.000000,136594.000000),coordinate(-526828.000000,113550.000000),
+coordinate(-476760.000000,94598.0000000),coordinate(-431025.000000,78397.0000000),
+coordinate(-383575.000000,62833.0000000),coordinate(-383575.000000,62833.0000000),
+coordinate(-315544.000000,42714.0000000),coordinate(-258208.000000,27852.0000000),
+coordinate(-189671.000000,12661.0000000),coordinate(-157532.000000,6866.00000000),
+coordinate(-125415.000000,1070.00000000),coordinate(-58580.0000000,-8062.00000000),
+coordinate(-41626.0000000,-10857.0000000),coordinate(28925.0000000,-22465.0000000)))
+
+fd<<!current_dsview!.geometry_field_for(:symbol_definition,:symbol_area)
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g<<simple_area.new_with_sectors(fd,sr)
+_endif
+!loader!.n_read<<650
+$
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+sid<<glt.insert({_unset,"",nd,gh(4778),gh(4496),0,_unset}).style_id
+sh(385243,sid)
+sid<<gat.insert({_unset,"",nd,_true,100,"",gh(4496),0,_true,sid,_false,0,_unset}).style_id
+sh(385242,sid)
+g.meta_data_id<<sid
+syt.insert({"route_direction",4,1,g.area_id,sid,_unset})
+_endif
+!loader!.n_read<<662
+$
+sr<<sector_rope.new(1)
+sr[1]<<sector.new_with(coordinate(1533.00000000,-1418.00000000),coordinate(-46969.0000000,-4637.00000000))
+sr[1]<<sector.concatenation(sr[1],sector.new_with(coordinate(-96137.0000000,-9701.00000000),coordinate(-153538.000000,-17734.0000000),
+coordinate(-197823.000000,-25419.0000000),coordinate(-237984.000000,-33491.0000000),
+coordinate(-296637.000000,-47006.0000000),coordinate(-346105.000000,-60018.0000000),
+coordinate(-395880.000000,-74529.0000000),coordinate(-453762.000000,-93137.0000000),
+coordinate(-504702.000000,-111028.000000),coordinate(-558618.000000,-131482.000000),
+coordinate(-612755.000000,-153540.000000),coordinate(-612755.000000,-153540.000000),
+coordinate(-674070.000000,-180401.000000),coordinate(-725968.000000,-204631.000000),
+coordinate(-749254.000000,-216090.000000),coordinate(-772546.000000,-227565.000000),
+coordinate(-753360.000000,-183584.000000),coordinate(-728999.000000,-101232.000000),
+coordinate(-722441.000000,-62725.0000000),coordinate(-718497.000000,27437.0000000)))
+sr[1]<<sector.concatenation(sr[1],sector.new_with(coordinate(-726093.000000,89198.0000000),coordinate(-749114.000000,177313.000000),
+coordinate(-774823.000000,233855.000000),coordinate(-740268.000000,216653.000000),
+coordinate(-707499.000000,200882.000000),coordinate(-642619.000000,171369.000000),
+coordinate(-610788.000000,157641.000000),coordinate(-554220.000000,134597.000000),
+coordinate(-504152.000000,115645.000000),coordinate(-458417.000000,99444.0000000),
+coordinate(-410967.000000,83880.0000000),coordinate(-410967.000000,83880.0000000),
+coordinate(-342936.000000,63761.0000000),coordinate(-285600.000000,48899.0000000),
+coordinate(-217063.000000,33708.0000000),coordinate(-184924.000000,27913.0000000),
+coordinate(-152807.000000,22117.0000000),coordinate(-85972.0000000,12985.0000000),
+coordinate(-69018.0000000,10190.0000000),coordinate(1533.00000000,-1418.00000000)))
+
+fd<<!current_dsview!.geometry_field_for(:symbol_definition,:symbol_area)
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+g<<simple_area.new_with_sectors(fd,sr)
+_endif
+!loader!.n_read<<693
+$
+_if crs?
+_then
+_dynamic !current_dsview!,!current_world!,!style_load_hash!,!loader!,!overwrite_styles?!
+ffc<<cbt.bundle_for({100,54,0}).colour_id
+sh(385245,ffc)
+sid<<glt.insert({_unset,"",nd,gh(4778),gh(4496),0,_unset}).style_id
+sh(385246,sid)
+sid<<gat.insert({_unset,"",nd,_true,100,"",ffc,0,_true,sid,_false,0,_unset}).style_id
+sh(385244,sid)
+g.meta_data_id<<sid
+syt.insert({"route_direction",5,1,g.area_id,sid,_unset})
+_endif
+!loader!.n_read<<707
+$
+sid<<gpt.insert({_unset,"",nd,0,0,_false,10.000000,90,{-2339.0000,-7748.0000,2486.0000,289.00000},
+0,"route_direction",_unset}).style_id
+sh(385219,sid)
+crs(rst,"Default","wmc_route_item","location","normal","100",4,3,"style_selector()","",
+sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,10.000000,0,{-7748.0000,-2486.0000,289.00000,2339.0000},
+0,"route_direction",_unset}).style_id
+sh(385216,sid)
+crs(rst,"Default","wmc_route_item","location","normal","100",5,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,10.000000,180,{-289.00000,-2339.0000,7748.0000,
+2486.0000},0,"route_direction",_unset}).style_id
+!loader!.n_read<<720
+$
+sh(385204,sid)
+crs(rst,"Default","wmc_route_item","location","normal","100",6,3,"style_selector()","",
+sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,10.000000,270,{-2486.0000,-289.00000,2339.0000,
+7748.0000},0,"route_direction",_unset}).style_id
+sh(385230,sid)
+crs(rst,"Default","wmc_route_item","location","normal","100",7,3,"style_selector()","",
+sid,_unset)
+!loader!.n_read<<730
+$
+crs(rst,"Default","wmc_route_item","location","normal","5000",0,3,"style_selector()",
+"",gh(385199),_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,50000.000,0,{-8000.0000,-2150.0000,150000.00,250000.00},
+0,"waypoint",_unset}).style_id
+sh(385293,sid)
+crs(rst,"Default","wmc_route_item","location","normal","5000",1,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,50000.000,0,{-8000.0000,-2150.0000,150000.00,250000.00},
+0,"waypoint",_unset}).style_id
+!loader!.n_read<<740
+$
+sh(385295,sid)
+crs(rst,"Default","wmc_route_item","location","normal","5000",2,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,50000.000,0,{-8000.0000,-2150.0000,150000.00,250000.00},
+gh(17746),"waypoint",_unset}).style_id
+sh(385297,sid)
+crs(rst,"Default","wmc_route_item","location","normal","5000",3,3,"","",sid,_unset)
+$
+sid<<gpt.insert({_unset,"",nd,0,0,_false,50.000000,90,{-11693.000,-38741.000,12431.000,1446.0000},
+0,"route_direction",_unset}).style_id
+sh(385221,sid)
+crs(rst,"Default","wmc_route_item","location","normal","5000",4,3,"style_selector()",
+"",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,50.000000,0,{-38741.000,-12431.000,1446.0000,11693.000},
+0,"route_direction",_unset}).style_id
+sh(385226,sid)
+crs(rst,"Default","wmc_route_item","location","normal","5000",5,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,50.000000,180,{-1446.0000,-11693.000,38741.000,
+12431.000},0,"route_direction",_unset}).style_id
+!loader!.n_read<<760
+$
+sh(385206,sid)
+crs(rst,"Default","wmc_route_item","location","normal","5000",6,3,"style_selector()",
+"",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,50.000000,270,{-12431.000,-1446.0000,11693.000,
+38741.000},0,"route_direction",_unset}).style_id
+sh(385232,sid)
+crs(rst,"Default","wmc_route_item","location","normal","5000",7,3,"style_selector()",
+"",sid,_unset)
+!loader!.n_read<<770
+$
+crs(rst,"Default","wmc_route_item","location","normal","600",0,3,"style_selector()","",
+gh(385199),_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,30000.000,0,{-4800.0000,-1290.0000,90000.000,150000.00},
+0,"waypoint",_unset}).style_id
+sh(385292,sid)
+crs(rst,"Default","wmc_route_item","location","normal","600",1,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,30000.000,0,{-4800.0000,-1290.0000,90000.000,150000.00},
+0,"waypoint",_unset}).style_id
+!loader!.n_read<<780
+$
+sh(385294,sid)
+crs(rst,"Default","wmc_route_item","location","normal","600",2,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,30000.000,0,{-4800.0000,-1290.0000,90000.000,150000.00},
+gh(17746),"waypoint",_unset}).style_id
+sh(385296,sid)
+crs(rst,"Default","wmc_route_item","location","normal","600",3,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,50.000000,90,{-11693.000,-38741.000,12431.000,1446.0000},
+0,"route_direction",_unset}).style_id
+!loader!.n_read<<790
+$
+sh(385220,sid)
+crs(rst,"Default","wmc_route_item","location","normal","600",4,3,"style_selector()","",
+sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,50.000000,0,{-38741.000,-12431.000,1446.0000,11693.000},
+0,"route_direction",_unset}).style_id
+sh(385225,sid)
+crs(rst,"Default","wmc_route_item","location","normal","600",5,3,"","",sid,_unset)
+$
+!loader!.n_read<<800
+$
+sid<<gpt.insert({_unset,"",nd,0,0,_false,50.000000,180,{-1446.0000,-11693.000,38741.000,
+12431.000},0,"route_direction",_unset}).style_id
+sh(385205,sid)
+crs(rst,"Default","wmc_route_item","location","normal","600",6,3,"style_selector()","",
+sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,50.000000,270,{-12431.000,-1446.0000,11693.000,
+38741.000},0,"route_direction",_unset}).style_id
+sh(385231,sid)
+!loader!.n_read<<810
+$
+crs(rst,"Default","wmc_route_item","location","normal","600",7,3,"style_selector()","",
+sid,_unset)
+crs(rst,"Default","wmc_route_item","location","normal","Auto",0,3,"style_selector()",
+"",gh(385199),_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,1.0000000,0,{0.0000000,0.0000000,3.0000000,5.0000000},
+0,"waypoint",_unset}).style_id
+sh(385214,sid)
+crs(rst,"Default","wmc_route_item","location","normal","Auto",1,3,"","",sid,_unset)
+!loader!.n_read<<820
+$
+crs(rst,"Default","wmc_route_item","location","normal","Auto",2,3,"","",gh(385214),_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,1.0000000,0,{0.0000000,0.0000000,3.0000000,5.0000000},
+gh(17746),"waypoint",_unset}).style_id
+sh(385215,sid)
+crs(rst,"Default","wmc_route_item","location","normal","Auto",3,3,"","",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,1.0000000,90,{-234.00000,-775.00000,239.00000,15.000000},
+0,"route_direction",_unset}).style_id
+sh(385217,sid)
+!loader!.n_read<<830
+$
+crs(rst,"Default","wmc_route_item","location","normal","Auto",4,3,"style_selector()",
+"",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,1.0000000,0,{-775.00000,-239.00000,15.000000,234.00000},
+0,"route_direction",_unset}).style_id
+sh(385223,sid)
+crs(rst,"Default","wmc_route_item","location","normal","Auto",5,3,"style_selector()",
+"",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,1.0000000,180,{-15.000000,-234.00000,775.00000,
+239.00000},0,"route_direction",_unset}).style_id
+sh(385202,sid)
+crs(rst,"Default","wmc_route_item","location","normal","Auto",6,3,"style_selector()",
+"",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,1.0000000,270,{-249.00000,-29.000000,234.00000,
+775.00000},0,"route_direction",_unset}).style_id
+sh(385228,sid)
+crs(rst,"Default","wmc_route_item","location","normal","Auto",7,3,"style_selector()",
+"",sid,_unset)
+$
+!loader!.n_read<<850
+$
+crs(rst,"Default","wmc_route_item","location","normal","Location Plan",0,3,"style_selector()",
+"",gh(385199),_unset)
+crs(rst,"Default","wmc_route_item","location","normal","Location Plan",1,3,"","",gh(385214),
+_unset)
+crs(rst,"Default","wmc_route_item","location","normal","Location Plan",2,3,"","",gh(385214),
+_unset)
+crs(rst,"Default","wmc_route_item","location","normal","Location Plan",3,3,"","",gh(385215),
+_unset)
+!loader!.n_read<<860
+$
+sid<<gpt.insert({_unset,"",nd,0,0,_false,1.0000000,90,{-234.00000,-775.00000,239.00000,15.000000},
+0,"route_direction",_unset}).style_id
+sh(385218,sid)
+crs(rst,"Default","wmc_route_item","location","normal","Location Plan",4,3,"style_selector()",
+"",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,1.0000000,0,{-775.00000,-239.00000,15.000000,234.00000},
+0,"route_direction",_unset}).style_id
+sh(385224,sid)
+!loader!.n_read<<870
+$
+crs(rst,"Default","wmc_route_item","location","normal","Location Plan",5,3,"","",sid,
+_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,1.0000000,180,{-15.000000,-234.00000,775.00000,
+239.00000},0,"route_direction",_unset}).style_id
+sh(385203,sid)
+crs(rst,"Default","wmc_route_item","location","normal","Location Plan",6,3,"style_selector()",
+"",sid,_unset)
+sid<<gpt.insert({_unset,"",nd,0,0,_false,1.0000000,270,{-249.00000,-29.000000,234.00000,
+775.00000},0,"route_direction",_unset}).style_id
+sh(385229,sid)
+crs(rst,"Default","wmc_route_item","location","normal","Location Plan",7,3,"style_selector()",
+"",sid,_unset)
+
+$

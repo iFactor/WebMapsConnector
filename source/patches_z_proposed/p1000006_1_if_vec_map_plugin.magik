@@ -1,0 +1,98 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package sw
+$
+
+################################################################
+##
+## p1000006.1_if_vec_map_plugin
+##
+## enable map tilting for Birds Eye views
+##
+################################################################
+
+sw!patch_software("wmc_som",4100)
+$
+sw!patch_software("map_plugin",1)
+$
+
+# use define_method_synonym() to wrap some of our behavior
+# around the core method without redefining the core behavior. 
+_if map_view.method(:original!calculate_transform|()|) _is _unset 
+_then
+	map_view.define_method_synonym(:original!calculate_transform|()|,:calculate_transform|()|)
+_endif
+$
+_pragma(classify_level=restricted)
+map_view.define_shared_variable(:INT!WMC_TILT_MAP?,_false,:public)
+$
+_pragma(classify_level=restricted)
+_private _method map_view.calculate_transform()
+	##
+	## Returns the transform that is equivalent to the current view
+	## definition.
+
+	_local orig_tr << _self.original!calculate_transform()
+
+	_if _self.INT!WMC_TILT_MAP?
+	_then
+		_local scr_bb << bounding_box.new_from( .window.inner_bounds )
+
+		# take the screen bounding box and pinch the top left/right
+		# coordinates in and down so that we get a "perspective" look
+
+		# Bing BirdsEye is given in 256x180 pixels so we need
+		# to pinch the y axis accordingly to make the images
+		# look good
+		_local compression << 0.3
+		
+		_local width << scr_bb.width
+		_local height << scr_bb.height
+		_local x_pinch << 0.0
+		_local y_pinch << ((height * compression)/2).truncated
+		
+		_local from_coords << rope.new()
+		_local to_coords << rope.new()
+
+		from_coords.add_last(scr_bb.bottom_left + coordinate(-x_pinch,y_pinch))
+		to_coords.add_last(scr_bb.bottom_left)
+
+		from_coords.add_last(scr_bb.bottom_right + coordinate(x_pinch,y_pinch))
+		to_coords.add_last(scr_bb.bottom_right)
+
+		from_coords.add_last(scr_bb.top_right)
+		to_coords.add_last(scr_bb.top_right + coordinate(-x_pinch,y_pinch))
+
+		from_coords.add_last(scr_bb.top_left)
+		to_coords.add_last(scr_bb.top_left + coordinate(x_pinch,y_pinch))
+
+		_local obliqueness_tr << transform.new_converting(to_coords,from_coords)
+		
+		orig_tr << orig_tr.multiply(obliqueness_tr)
+		
+	_endif
+	
+	_return orig_tr
+_endmethod
+$
+sw!declare_patch(1000006,"1_if_vec_map_plugin","enable map tilting for Birds Eye views")
+$

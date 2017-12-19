@@ -1,0 +1,8 @@
+mclib_dotnet_acp	1
+
+description
+	Microsoft .NET Acp
+end
+
+requires
+end

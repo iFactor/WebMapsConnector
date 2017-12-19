@@ -1,0 +1,152 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+def_slotted_exemplar(:google_rwo_record,
+		    {},
+		    {:wmc_rwo_record_static_map})
+$
+
+google_rwo_record.define_shared_constant(:DATASET_NAME,
+	:google_dataset,
+	:private)
+$
+_pragma(classify_level=basic, usage={redefinable})
+## the maximum pixel width of a tile allowed by Google Static
+## Maps API.
+google_rwo_record.define_shared_constant(:MAX_TILE_WIDTH,640,_false)
+$
+_pragma(classify_level=basic, usage={redefinable})
+## the maximum pixel height of a tile allowed by Google Static
+## Maps API.
+google_rwo_record.define_shared_constant(:MAX_TILE_HEIGHT,640,_false)
+$
+_pragma(classify_level=restricted)
+## used by the wmc_route_finder to tell the Google Static Maps
+## API what path to draw.
+google_rwo_record.define_shared_variable(:route_finder_info,property_list.new(),:public)
+$
+_pragma(classify_level=restricted)
+_method google_rwo_record.extra_rendering_info
+	## an extra string that is sent to the ACP at rendering time
+	## that can be used to pass any special rendering information.
+	## these can be extra URL parameter key/value pairs that can be
+	## customised for a specific implementation.
+
+	_return write_string("&",_self.int!geocode_results,_self.int!routing_results,_self.int!map_style)
+	
+	
+_endmethod 
+$
+_pragma(classify_level=restricted)
+_private _method google_rwo_record.int!geocode_results
+	
+	_local a_view << _self.source_view
+	
+	_dynamic !print_float_precision! << 12
+	_dynamic !current_coordinate_system! << a_view.longlat_coordinate_system
+	
+	# geocode results
+	_local geocode_string << ""
+
+	_local coords << rope.new()
+	_for n _over a_view.collections[:geocode_result].fast_elements()
+	_loop
+		_if n.location.is_kind_of?(uds_simple_point)
+		_then
+			_local coord << n.location.coordinate
+			coords.add_last(write_string(coord.y,",",coord.x))
+		_endif
+	_endloop
+
+	_if _not coords.empty?
+	_then
+		geocode_string << write_string("&markers=",write_string_with_separator(coords,%|))
+	_endif
+
+	_return geocode_string
+_endmethod
+$
+_pragma(classify_level=restricted)
+_private _method google_rwo_record.int!routing_results
+	_local a_view << _self.source_view
+	
+	_dynamic !print_float_precision! << 8
+	_dynamic !current_coordinate_system! << a_view.longlat_coordinate_system
+
+	_local route_finder << _self.route_finder_info[:wmc_route_finder]
+
+	_if route_finder _is _unset 
+	_then
+		_return ""
+	_endif
+	
+	_local marker_string << ""
+	
+	_for idx,i_wp _over route_finder.waypoints.fast_keys_and_elements()
+	_loop
+		_local a_coord << i_wp.location.coord
+		marker_string +<< write_string("&markers=color:green|label:",idx,"|",a_coord.y,",",a_coord.x)
+	_endloop
+
+#	_local path_string << ""
+#	_local path_coords << rope.new()
+#	
+#	_if route_finder.route_results[:directions] _isnt _unset 
+#	_then
+#		_for i_chain _over route_finder.route_geometries().fast_elements()
+#		_loop
+#			_for i_sector _over i_chain.sectors()
+#			_loop
+#				_for i_coord _over i_sector.fast_elements()
+#				_loop
+#					path_coords.add_last(write_string(i_coord.y,",",i_coord.x))
+#				_endloop
+#			_endloop
+#		_endloop 
+#	_endif
+#
+#	_if _not path_coords.empty?
+#	_then
+#		path_string << write_string("&path=color:0x0000ff|weight:5|",
+#					    write_string_with_separator(path_coords,"|"))
+#	_endif
+	
+	_return write_string(marker_string) #,path_string)
+_endmethod
+$
+_pragma(classify_level=advanced,usage={redefinable})
+_method google_rwo_record.int!map_style
+	## remember to separate key/value pairs with "&" and to lead
+	## the string off with a "&"
+	##
+	## see
+	## http://code.google.com/apis/maps/documentation/staticmaps/#StyledMaps
+	## for examples
+	
+	_return ""#"&style=feature:road.highway|element:geometry|hue:0xff0022|saturation:60|lightness:-20&style=feature:road.arterial|element:geometry|hue:0x2200ff|lightness:-40:visibility:simplified|saturation:30&style=feature:road.local|hue:0xf6ff00|saturation:60|gamma:0.7|visibility:simplified&style=feature:water|element:geometry|saturation:40|lightness:40&style=road.highway|element:labels|visibility:on|saturation:98&style=feature:administrative.locality|element:labels|hue:0x0022ff|saturation:50|lightness:-10|gamma:0.9&style=feature:transit.line|element:geometry|hue:0xff0000|visibility:on|lightness:-70"
+
+_endmethod
+$
+
+
+

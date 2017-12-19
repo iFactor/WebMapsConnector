@@ -1,0 +1,6 @@
+map_animator
+map_animator_2
+map_animator_framework
+map_animator_framework_2
+map_animator_plugin
+map_animator_plugin_2

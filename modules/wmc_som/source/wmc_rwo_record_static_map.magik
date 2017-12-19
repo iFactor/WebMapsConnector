@@ -1,0 +1,68 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+_pragma(classify_level=advanced)
+## wmc_rwo_record classes that produce static maps (as opposed
+## to indexed tile maps) should inherit from this class
+## instead. 
+def_slotted_exemplar(:wmc_rwo_record_static_map,
+		    {},
+		    {:wmc_rwo_record})
+$
+_pragma(classify_level=restricted, topic={VirtualEarth})
+_method wmc_rwo_record_static_map.quadkey_tile_bounds(qk)
+	## 
+	## Return the LongLat bounding box covered by the tile with quadkey QK.
+
+	_local corner_info << qk.split_by(%|)[3]
+	_local values << property_list.new()
+	
+	_for n _over qk.split_by(%|)[3].split_by(%,).fast_elements()
+	_loop
+		_local sv << n.split_by(%=)
+
+		values[sv[1].canonical.as_symbol()] << sv[2].as_number()
+	_endloop 
+
+	_return bounding_box.new(values[:minlon],values[:minlat],
+				 values[:maxlon],values[:maxlat])
+
+_endmethod
+$
+_method wmc_rwo_record_static_map.tile_outline_in_pixels(qk)
+	
+
+	_local size << qk.split_by(%|)[2].split_by(%=).last.split_by(%x).map(_proc(a)
+										     >> a.as_number()
+									     _endproc)
+	_local width << size[1]
+	_local height << size[2]
+	
+	>> sector.new_with(coordinate(0,height),
+			   coordinate(width,height),
+			   coordinate(width,0),
+			   coordinate(0,0),
+			   coordinate(0,height))
+
+_endmethod
+$

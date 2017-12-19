@@ -1,0 +1,286 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+def_slotted_exemplar(:osm_dataset,
+	{
+		{:osm_data_cache,_unset},
+		{:sys_id,_unset}
+	},
+	{:wmc_dataset})
+$
+_global _constant !osm_feature_id! << _unset
+$
+_pragma(classify_level=restricted)
+## caches the OSM data loaded from a .osm file for later
+## reference. 
+osm_dataset.define_slot_access(:osm_data_cache,:read,:private)
+$
+	
+_pragma(classify_level=advanced, usage={redefinable})
+## DATASET_NAME : symbol
+##
+## the name of the WMC Dataset.  This is necessary to link the
+## WMC Dataset's SOC definition with a suitable
+## transient_dataset.DATASET_INSTANCE_METADATA definition.
+osm_dataset.define_shared_constant(:DATASET_NAME,
+	:osm_dataset,
+	_false)
+$
+_pragma(classify_level=advanced, topic={universal_rwo}, usage={subclassable})
+_method osm_dataset.max_zoom_level(a_collection)
+
+	_local name << a_collection.name
+	
+	_if name _is :cyclemap_tile _orif
+	    name _is :mapnik_tile
+	_then
+		_return 18
+	_elif name _is :osmarender_tile
+	_then
+			
+		_return 17
+	_endif
+	
+	_return 21
+_endmethod
+$
+_pragma(classify_level=advanced, topic={universal_rwo}, usage={subclassable})
+_method osm_dataset.min_zoom_level(a_collection)
+	
+	_return 1
+_endmethod
+$
+
+_pragma(classify_level=basic)
+_method osm_dataset.generate_unique_id()
+	## generate_unique_id() : integer
+	##
+	## returns a unique integer to be used as IDs for new OSM
+	## objects in self.
+
+	_dynamic !osm_feature_id!
+
+	_if !osm_feature_id! _isnt _unset 
+	_then
+		_return !osm_feature_id!
+	_endif
+	
+	_if .sys_id _is _unset 
+	_then
+		.sys_id << 0
+	_endif
+
+	.sys_id -<< 1
+
+	_return .sys_id
+_endmethod
+$
+
+
+_pragma(classify_level=basic)
+_method osm_dataset.clear_osm_data()
+
+	_local tab
+	
+	_for table_name _over {:osm_node,:osm_way,:osm_relation}.fast_elements()
+	_loop
+		_if ( tab << _self.collections[table_name] ) _isnt _unset 
+		_then
+			tab.empty()
+		_endif
+	_endloop 
+_endmethod
+$
+
+
+_pragma(classify_level=advanced)
+_method osm_dataset.load_osm_file(osm_filename)
+	## load_osm_file(string OSM_FILENAME) : _unset
+	##
+	## populates _self with data from OSM_FILENAME. 
+
+	_local doc << simple_xml.read_document_file(osm_filename)
+
+	_self.clear_osm_data()
+
+	.osm_data_cache << property_list.new_with(:node,equality_hash_table.new(),
+						  :way,equality_hash_table.new(),
+						  :relation,equality_hash_table.new())
+	
+	_local xml_tag , cache
+	
+	_for an_element _over doc.elements[1].elements.fast_elements()
+	_loop
+		xml_tag << an_element.xml_tag
+
+		cache << .osm_data_cache[an_element.xml_tag]
+
+		_if cache _is _unset 
+		_then
+			_continue
+		_endif
+
+		cache[an_element.attributes[:id]] << an_element
+	_endloop
+
+	_self.int!populate_data_collections()
+	
+	_return doc
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method osm_dataset.int!populate_data_collections()
+
+	_local method_name
+
+	_for osm_type _over {:node,:way}.fast_elements()
+	_loop
+		method_name << :int!populate_osm_ + osm_type + :|()|
+		
+		_for an_element _over .osm_data_cache[osm_type].fast_elements()
+		_loop
+			_self.perform(method_name,an_element)
+		_endloop
+	_endloop
+	
+	
+_endmethod
+$
+
+_pragma(classify_level=advanced)
+_method osm_dataset.int!populate_osm_node(an_xml_element)
+	## int!populate_osm_node(simple_xml_thing AN_XML_ELEMENT) : _unset
+	##
+	## populates the :osm_node table with information from
+	## AN_XML_ELEMENT.  We are interested only in those nodes that
+	## actually have tags because those represent the point
+	## objects.  The other nodes (the ones that make up WAYS) will
+	## not be stored in this collection.
+
+	_dynamic !current_coordinate_system! << _self.world.coordinate_system
+	
+	_if an_xml_element.elements.empty?
+	_then
+		_return 
+	_endif
+
+	_local attributes << an_xml_element.attributes
+	
+	_local pairs << rope.new()
+
+	_local location << pseudo_point.new(coordinate.new(attributes[:lon].as_number(),attributes[:lat].as_number()))
+	location.world << pseudo_world.new(_self.LONGLAT_COORDINATE_SYSTEM)
+
+	
+	_for i _over an_xml_element.elements.fast_elements()
+	_loop
+		_if i.xml_tag _is :tag
+		_then
+			attributes << i.attributes
+
+			pairs.add_last(write_string(attributes[:k],"=",attributes[:v]))
+		_endif
+	_endloop 
+
+	_local str << internal_text_output_stream.new()
+	str.write_list_with_separator(pairs,"|")
+
+
+	_local pl << property_list.new_with(:id,an_xml_element.attributes[:id].as_number(),
+					    :tags,str.string,
+					    :location,location)
+
+	# use this dynamic value so that we can override the id field
+	# generated value.
+	_dynamic !osm_feature_id! << pl[:id]
+	
+	record_transaction.new_insert(_self.collections[:osm_node],pl).run()
+_endmethod
+$
+
+
+_pragma(classify_level=advanced)
+_method osm_dataset.int!populate_osm_way(an_xml_element)
+	## int!populate_osm_node(simple_xml_thing AN_XML_ELEMENT) : _unset
+	##
+	## populates the :osm_way table with information from
+	## AN_XML_ELEMENT.  
+
+	_dynamic !current_coordinate_system! << _self.LONGLAT_COORDINATE_SYSTEM
+	
+	_if an_xml_element.elements.empty?
+	_then
+		_return 
+	_endif
+
+	_local attributes << an_xml_element.attributes
+	
+	_local secs << sector.new()
+	_local pairs << rope.new()
+	
+	_for i _over an_xml_element.elements.fast_elements()
+	_loop
+		_if i.xml_tag _is :tag
+		_then
+			attributes << i.attributes
+			pairs.add_last(write_string(attributes[:k],"=",attributes[:v]))
+		_endif
+
+		_if i.xml_tag _is :nd
+		_then
+			ref << i.attributes[:ref]
+			a_node << _self.osm_data_cache[:node][ref]
+			
+			coord << coordinate.new(a_node.attributes[:lon].as_number(),
+						a_node.attributes[:lat].as_number())
+
+			secs.add(coord)
+		_endif
+	_endloop 
+
+	_local str << internal_text_output_stream.new()
+	str.write_list_with_separator(pairs,"|")
+
+	_local a_geom
+	_local geom_field_name
+	
+	_if secs.first.distance_to(secs.last) = 0.0
+	_then
+		geom_field_name << :extent
+	_else
+		geom_field_name << :route
+	_endif
+	
+
+	_local pl << property_list.new_with(:id,an_xml_element.attributes[:id].as_number(),
+					    :tags,str.string,
+					    geom_field_name, secs)
+
+	# use this dynamic value so that we can override the id field
+	# generated value.
+	_dynamic !osm_feature_id! << pl[:id]
+
+	record_transaction.new_insert(_self.collections[:osm_way],pl).run()
+	
+_endmethod
+$

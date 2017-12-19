@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="windows-1252" standalone="yes"?>
+<gui>
+	<menu name="menubar" type="menubar">
+		<submenu name="file">
+			<action name="wmc_route_finder.save_waypts" action_message="save_waypts()" control_type="button_item"/>
+			<action name="wmc_route_finder.load_waypts" action_message="load_waypts()" control_type="button_item"/>
+			<separator/>
+			<action name="wmc_route_finder.save_results" action_message="save_results()" control_type="button_item"/>
+			<action name="wmc_route_finder.quit" action_message="quit()" control_type="button_item"/>
+		</submenu>
+
+		<submenu name="actions">
+			<action name="wmc_route_finder.calculate_route" action_message="calculate_route()" control_type="image_button_item"/>
+			<action name="wmc_route_finder.zoom_to_route" action_message="zoom_to_route()" control_type="button_item"/>
+		</submenu>
+
+		<submenu name="help">
+			<!-- <action name="wmc_route_finder.about" action_message="about()" control_type="button_item"/> -->
+		</submenu>
+	</menu>
+
+	<statusbar name="default">
+		<pane id="info" style="innie" width="80" springy="false"/>
+		<pane id="status" style="innie" width="20" springy="true"/>
+		<progress_bar id="progress" style="innie" width="200"/>
+	</statusbar>
+
+	<work_area>
+		<plugin plugin_name="wmc_route_finder"/>
+	</work_area>
+</gui>

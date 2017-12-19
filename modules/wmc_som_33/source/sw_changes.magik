@@ -1,0 +1,80 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package sw
+$
+## need to define these methods/classes simply so that WMC code
+## will build.
+_method plugin.def_property()
+	
+_endmethod
+$
+def_slotted_exemplar(:viewport_layout,{},{})
+$
+def_slotted_exemplar(:map_view,{},{})
+$
+_method graphics_view.wmc_dpi
+	# this value is only used to determine tile zoom level and does
+	# not affect the tile transform. Therefore we can hard-code a
+	# reasonable value like '95' as a blank DPI for WMC purposes. 
+	>> 95
+_endmethod
+$
+_pragma(classify_level=restricted)
+_method coordinate_system.new_from_serial ( keys, xml_values )
+	## 
+	## Creates a new instance of SELF by given keys and
+	## xml_values. Can only be used by XML
+	##
+
+	_local props << property_list.new()
+
+	_for nr, key _over keys.fast_keys_and_elements()
+	_loop
+		props[key] << xml_values[nr]
+	_endloop
+
+	# Take into account that in_cs_menus? was stored as in_cs_menus
+	# (without the ? character)
+	# And that the false_origin is stored as an exact float type of
+	# string.
+	
+	datum_name     << props.remove_key ( :datum_name )
+	proj_type      << props.remove_key ( :proj_type  )
+	proj_params    << props.remove_key ( :proj_params )
+	false_origin_x << props.remove_key ( :false_origin_x ).default ( "0.0" ).evaluate ().as_number ()
+	false_origin_y << props.remove_key ( :false_origin_y ).default ( "0.0" ).evaluate ().as_number ()
+	unit_name      << props.remove_key ( :unit_name )
+
+	false_origin   << coordinate ( false_origin_x, false_origin_y )
+	
+	props[:in_cs_menus?] << props.remove_key(:in_cs_menus).default ( _false )
+	
+	key_value_pairs << props.for_scatter ()
+		
+	cs << coordinate_system.new_proj ( datum_name, proj_type, proj_params,
+					   false_origin, unit_name, _scatter key_value_pairs )
+	
+	>> cs
+	
+_endmethod
+$
+

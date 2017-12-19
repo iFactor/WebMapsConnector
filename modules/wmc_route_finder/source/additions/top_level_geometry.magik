@@ -1,0 +1,54 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+
+########################################################################
+##
+## Last Saved Time-stamp: <2010-05-04 11:18:54 Greg>
+##
+## Created By: Greg Cahill, iFactor Consulting
+## Date: 10-Nov-2009
+##
+##
+## Description: 
+##
+## ---------- Revision History -----------
+##
+## -------- end revision history ---------
+########################################################################
+
+
+_pragma(classify_level=advanced, topic={wmc_route_finder}, usage={subclassable})
+_method top_level_geometry.description_for_route_finder()
+	## Backstop method to return a string for use in the WMC Route Finder
+	##
+
+	# Attempt to reverse geocode the location
+	a_desc << "".concatenation(_self.geom_type.write_string.capitalise, " (",
+				   _self.geom_id[3].write_string, ")") 
+
+	>> a_desc
+
+_endmethod
+$
+

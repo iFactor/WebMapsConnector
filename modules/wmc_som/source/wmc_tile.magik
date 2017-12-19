@@ -1,0 +1,195 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+$
+_pragma(classify_level=advanced)
+## WMC_TILE
+##
+## a UDS raster class that represents the Web Maps Connector
+## (WMC) tile image.  There is only one instance of this
+## geometry in each of the tile collections.  This geometry has
+## a bounds that covers 180W,80N to 180E,80S. 
+def_slotted_exemplar(:wmc_tile,
+		    {
+			    {:coverage,_unset}
+		    },
+		    {:uds_top_level_geometry,:raster_mixin})
+$
+_pragma(classify_level=restricted)
+## coverage : geometry_set
+##
+## used for caching tiles.
+##
+## FIXME FIXME:
+## THIS MAY NOT BE USED in the future.  Still need to decide on
+## the final caching mechanism.
+wmc_tile.define_slot_access(:coverage,:read,:private)
+$
+universal_dataset.sys!perform(:geometry_types)[:wmc_tile] << :wmc_tile
+$
+
+_pragma(classify_level=basic)
+## define wmc_tile as a :raster
+wmc_tile.define_shared_constant(:style_category,:raster,_false)
+$
+_pragma(classify_level=basic)
+_method wmc_tile.geom_type
+	## geom_type : symbol
+	##
+	## returns :raster
+	
+	_return :raster
+_endmethod
+$
+
+_pragma(classify_level=basic)
+_method wmc_tile.geom_category
+	## geom_category : symbol
+	##
+	## returns :raster
+	
+	_return :raster
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method wmc_tile.init(descriptor)
+	## init(DESCRIPTOR dd_geom_field) : wmc_tile
+	##          
+	## initialises self and resets the caching on self. 
+	
+	.geometry_descriptor << descriptor
+	.coverage << _unset
+	
+	_return  _self 
+_endmethod
+$
+
+_pragma(classify_level=basic)
+_method wmc_tile.bounds
+	## bounds : bounding_box
+	##
+	## returns the bounding_box of _self in
+	## !current_coordinate_system!.  If !current_coordinate_system!
+	## is _unset, then the bounding_box coordinates are returned in
+	## self.world.coordinate_system 
+	_dynamic !current_coordinate_system!
+	
+	_local bb << pseudo_bounding_box.new(-180,-80,180,80)
+	bb.world << pseudo_world.new(wmc_dataset.LONGLAT_COORDINATE_SYSTEM)
+
+	_local central_meridian
+	
+	_if !current_coordinate_system! _is _unset 
+	_then
+		!current_coordinate_system! << _self.world.coordinate_system
+	_endif
+
+	_try
+		_return bb.bounds
+		
+	_when coordinate_out_of_range
+
+		_local (proj_type,params) << !current_coordinate_system!.proj_type_and_params
+		_local zone
+		
+		_if (zone << params[:zone]) _isnt _unset _andif
+		    (zone << zone.as_number()) _isnt _unset 
+		_then
+			# try again with a smallworld pseudo_bounding_box that is
+			# geared towards the !current_coordinate_system!.  Apparently
+			# UTM zone projections do not have a world-wide coverage (I
+			# realize they are meant to be local, but they do not even have
+			# a distorted world-wide coverage) so they do not transform the
+			# world-wide bounds of self.  So when we have a UTM projection,
+			# we need to modify self's bounding box to be local to the UTM
+			# zone. 
+			central_meridian << (((zone - 1) * 6) + 3) - 180
+
+		_elif proj_type.index_of_seq("merc") _isnt _unset _andif
+		      (central_meridian << params[:lon_0].as_number()) _isnt _unset 
+		_then
+			# do nothing else here.
+		_else
+			condition.raise(:coordinate_out_of_range)
+		_endif
+	_endtry
+
+	bb << pseudo_bounding_box.new(central_meridian-180,-80,central_meridian+180,80)
+	bb.world << pseudo_world.new(wmc_dataset.LONGLAT_COORDINATE_SYSTEM)
+
+	_return bb.bounds
+_endmethod
+$
+_pragma(classify_level=basic)
+_method wmc_tile.outline
+	## outline : sector_rope
+	##
+	## returns the outline of _self's bounding_box in
+	## !current_coordinate_system!.  If !current_coordinate_system!
+	## is _unset, then the coordinates are returned in
+	## self.world.coordinate_system  
+
+	_return _self.bounds.sectors
+_endmethod
+$
+_pragma(classify_level=advanced)
+_method wmc_tile.draw_on(window)
+	## draw_on(WINDOW canvas) : _unset
+	##
+	## ask the ve_swaf_plugin associated with the
+	## sw:!ve_connector_current_map_view!'s application for
+	## its ve_map_type to determine what to draw on the current
+	## map_view.
+
+	_dynamic !current_coordinate_system!
+	
+	_if !current_coordinate_system! _is _unset 
+	_then
+		!current_coordinate_system! << wmc_dataset_manager.custom_coordinate_system()
+	_endif
+
+	_local trace_level << if_ve_acp.trace_level
+	
+	_catch @out
+		_handling coordinate_out_of_range _with
+		_proc(cond)
+			_import trace_level
+
+			_if trace_level.default(0) > 1
+			_then
+				!traceback!()
+				cond.continue_handling()
+
+			_elif trace_level.default(0) = 1
+			_then
+				write("wmc_tile.draw_on() ",cond.report_string)
+				_throw @out
+			_else
+				# suppress any error message
+				_throw @out
+			_endif
+		_endproc
+		
+		if_ve_acp.draw_tiles(window,_self.rwo.source_collection)
+	_endcatch #@out
+_endmethod
+$

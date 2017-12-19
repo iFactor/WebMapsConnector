@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="windows-1252" standalone="yes"?>
+<gui>
+	<work_area>
+		<plugin plugin_name="ve_som_about_dialog"/>
+	</work_area>
+</gui>

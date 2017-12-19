@@ -1,0 +1,269 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+
+_package user
+$
+
+_pragma(classify_level=restricted, topic={web_map_service})
+## a wrapper class for WMS Capabilities document.
+def_slotted_exemplar(:wms_capability,
+	{
+		{:capability_document, _unset, :writable},
+		{:parsed_data,_unset,:readable}
+	},
+	{})
+$
+_pragma(classify_level=basic, topic={web_map_service})
+_method wms_capability.new(capability_string)
+	## new(string CAPABILITY_STRING) : wms_capability
+	##
+	## creates a new instance of self with CAPABILITY_STRING (a wMS
+	## XML document as a string)
+
+	_return _clone.init(capability_string)
+	
+_endmethod
+$
+_pragma(classify_level=basic, topic={web_map_service})
+_method wms_capability.new_from_file(capability_filename)
+	## new_from_file(string CAPABILITY_FILENAME) : wms_capability
+	##
+	## creates a new instance of self with CAPABILITY_FILENAME (a wMS
+	## XML document filename)
+
+	_return _clone.init_from_file(capability_filename)
+	
+_endmethod
+$
+_pragma(classify_level=basic, topic={web_map_service})
+_method wms_capability.new_from_document(a_simple_xml_document)
+	## new_from_document(simple_xml_document A_SIMPLE_XML_DOCUMENT) : wms_capability
+	##
+	## creates a new instance of self with A_SIMPLE_XML_DOCUMENT
+
+	_return _clone.init_from_document(a_simple_xml_document)
+	
+_endmethod
+$
+_pragma(classify_level=restricted, topic={web_map_service})
+_private _method wms_capability.init(capability_string)
+	## init(string CAPABILITY_STRING) : wms_capability
+	##
+	## initializes self with CAPABILITY_STRING (a WMS XML document
+	## as a string)
+
+	.capability_document << simple_xml.read_document_string(capability_string)
+	_return _self 
+ _endmethod
+$
+_pragma(classify_level=restricted, topic={web_map_service})
+_private _method wms_capability.init_from_file(capability_filename)
+	## init_from_file(string CAPABILITY_FILENAME) : wms_capability
+	##
+	## initialises self with CAPABILITY_FILENAME (a WMS
+	## XML document filename)
+
+	.capability_document << simple_xml.read_document_file(capability_filename)
+	_return _self
+	
+_endmethod
+$
+_pragma(classify_level=restricted, topic={web_map_service})
+_private _method wms_capability.init_from_document(a_simple_xml_document)
+	## init_from_document(simple_xml_document A_SIMPLE_XML_DOCUMENT) : wms_capability
+	##
+	## initialises self with A_SIMPLE_XML_DOCUMENT
+
+	.capability_document << a_simple_xml_document
+	_return _self
+	
+_endmethod
+$
+_pragma(classify_level=restricted, topic={web_map_service})
+_private _method wms_capability.int!element_text(an_element)
+	## int!element_text(simple_xml_thing AN_ELEMENT) : string
+	##
+	## returns an_element.elements[1] if it exists.  Otherwise
+	## returns an empty string.
+
+	
+	_if an_element _isnt _unset _andif
+	    an_element.elements _isnt _unset 
+	_then
+		_return an_element.elements[1]
+	_else
+		_return ""
+	_endif
+_endmethod
+$
+
+
+_pragma(classify_level=advanced, topic={web_map_service})
+_method wms_capability.parse()
+	## parse() : _unset
+	##
+	## for debug only
+
+	_local pl << property_list.new()
+	
+	_local te << .capability_document.top_element
+
+	
+	_local service_tag << te.element_matching_name("Service")
+	_local capability << te.element_matching_name("Capability")
+	_local request << capability.element_matching_name("Request")
+	_local getmap << request.element_matching_name("GetMap")
+	_local exception << capability.element_matching_name("Exception")
+	_local dcptype << getmap.element_matching_name("DCPType")
+	_local http << dcptype.element_matching_name("HTTP")
+	_local get << http.element_matching_name("Get")
+
+	pl[:version] << te.attributes[:version]
+	pl[:title] << _self.int!element_text(service_tag.element_matching_name("Title"))
+	pl[:name] << _self.int!element_text(service_tag.element_matching_name("Name"))
+	pl[:abstract] << _self.int!element_text(service_tag.element_matching_name("Abstract"))
+	
+	_local urls << pl[:urls] << rope.new()
+	_for i_resource _over get.elements_matching_name("OnlineResource")
+	_loop
+		urls.add_last(i_resource.attributes["xlink:href"])
+	_endloop
+
+	_local formats << pl[:formats] << rope.new()
+	_for i_format _over getmap.elements_matching_name("Format")
+	_loop
+		formats.add_last(_self.int!element_text(i_format))
+	_endloop
+
+	_local exceptions << pl[:exceptions] << rope.new()
+	_for i_format _over exception.elements_matching_name("Format")
+	_loop
+		exceptions.add_last(_self.int!element_text(i_format))
+	_endloop
+	
+	_local layers << rope.new_from_iter(capability,:elements_matching_name|()|,"Layer")
+
+	_for i_layer _over layers.fast_elements()
+	_loop
+		_for i_sub_layer _over i_layer.elements_matching_name("Layer")
+		_loop
+			layers.add_last(i_sub_layer)
+		_endloop
+	_endloop
+
+	_local srs_set << sorted_set.new()
+
+	_local layer_list << pl[:layers] << rope.new()
+
+	_local service << property_list.new()
+	
+	_for i_layer _over layers.fast_elements()
+	_loop
+		_local name << i_layer.element_matching_name("Name")
+
+		_if name _isnt _unset 
+		_then
+			_local layer_info << property_list.new()
+			layer_list.add_last(layer_info)
+			layer_info[:service_capability] << service
+			layer_info[:name]               << _self.int!element_text(name)
+			layer_info[:title]              << _self.int!element_text(i_layer.element_matching_name("Title"))
+		_endif
+
+		_for i_srs _over i_layer.elements_matching_name("SRS")
+		_loop
+			srs_set.add(_self.int!element_text(i_srs))
+		_endloop
+		
+	_endloop
+
+	pl[:srs] << rope.new_from(srs_set)
+
+	# the SERVICE is a property_list that is the same as PL
+	# *except* it does not include :layers so that we don't get
+	# into a recursion issue when serializing it to XML.
+	_for k,v _over pl.fast_keys_and_elements()
+	_loop
+		_if k _is :layers
+		_then
+			_continue
+		_endif
+
+		service[k] << v
+	_endloop
+	
+
+	_return pl
+_endmethod
+$
+_pragma(classify_level=debug, topic={web_map_service})
+_method wms_capability.print_on(a_stream)
+	## print_on(output_stream A_STREAM) : _unset
+	##
+	## writes a description of self to A_STREAM
+
+	_local pl << _self.parse()
+	
+	a_stream.write("GET URLs...",newline_char)
+	_for i_url _over pl[:urls].fast_elements()
+	_loop
+		a_stream.write(tab_char,i_url,newline_char)
+	_endloop
+
+	a_stream.write("FORMATS...",newline_char)
+	_for i_format _over pl[:formats].fast_elements()
+	_loop
+		a_stream.write(tab_char,i_format,newline_char)
+	_endloop
+
+	a_stream.write("EXCEPTIONS...",newline_char)
+	_for i_format _over pl[:exceptions].fast_elements()
+	_loop
+		a_stream.write(tab_char,i_format,newline_char)
+	_endloop
+	
+	a_stream.write("LAYERS...",newline_char)
+	_for i_layer _over pl[:layers].fast_elements()
+	_loop
+		a_stream.write(tab_char,i_layer[:name]," (",i_layer[:title],")",newline_char)
+	_endloop
+
+	a_stream.write("SRS...",newline_char)
+	_for i_srs _over pl[:srs].fast_elements()
+	_loop
+		a_stream.write(tab_char,i_srs,newline_char)
+	_endloop
+
+_endmethod
+$
+_pragma(classify_level=debug, topic={web_map_service})
+_method wms_capability.layer_info()
+	## layer_info() : rope
+	##
+	## 
+
+	_local pl << _self.parse()
+
+	
+_endmethod
+$
+

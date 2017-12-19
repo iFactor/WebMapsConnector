@@ -1,0 +1,9 @@
+mclib_http_interface	4000
+
+description
+	Support for the HTTP protocol
+end
+
+requires
+	mclib_package	
+end

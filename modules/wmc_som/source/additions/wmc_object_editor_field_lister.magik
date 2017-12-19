@@ -1,0 +1,168 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+_package user
+
+##
+## The WMC subclassed object_editor_field_lister for certain
+## objects need customization.
+##
+def_slotted_exemplar( :wmc_object_editor_field_lister,
+		      {
+			      {:webcam_canvas, _unset},
+			      {:refresh_thread, _unset}
+		      },
+		      {:object_editor_field_lister} )
+$
+
+_pragma(classify_level=advanced)
+_method wmc_object_editor_field_lister.build_gui( a_container )
+	## 
+	## Builds the GUI in A_CONTAINER
+	##
+
+	pw << paned_window.new(a_container,
+			       :side_by_side?,_false,
+			       :col_alignment,	:fill,
+			       :row_alignment,	:fill,
+			       :row_resize_values, { 0,100 } )
+
+	rc << .field_lister.build_gui( pw )
+	ag << canvas_agent.new(_self)
+	ag.define_redraw(:redraw_canvas|()|, _self)
+
+	#.webcam_canvas << scrollable_canvas.new(pw, rc.width.default(386), rc.height.default(200), ag)
+	.webcam_canvas << scrollable_canvas.new(pw, _unset , _unset , ag)
+	.webcam_canvas.retained? << _true 
+	#.webcam_canvas.row_alignment << :fill
+	#.webcam_canvas.col_alignment << :fill
+	.webcam_canvas.resize_x? << _true
+	.webcam_canvas.resize_y? << _true
+	
+	rc.tab_label << _self.message( :tab_label )
+
+	>> a_container
+
+_endmethod
+$
+
+_pragma(classify_level=advanced)
+_method wmc_object_editor_field_lister.redraw_canvas()
+	## 
+	## draw the webcam image on canvas
+	## 
+
+	_protect
+		
+		_if (co << _self.editor.current_object) _isnt _unset _andif
+		    (canvas_file_name << co.url) _isnt _unset _andif 
+		    system.file_exists?(canvas_file_name)
+		_then
+			ri << raster_image.new_from_file(canvas_file_name)
+			(w, h, d) << ri.size()
+			.webcam_canvas.render_raster(ri,0,0,_false)
+			.webcam_canvas.add_vertical_scrollbar(h, .webcam_canvas.height, .webcam_canvas.height)
+			.webcam_canvas.add_horizontal_scrollbar(w, .webcam_canvas.width, .webcam_canvas.width)
+		_else
+			.webcam_canvas.clear()
+		_endif
+		
+	_protection
+		_if ri _isnt _unset _then ri.destroy() _endif 
+	_endprotect
+	
+_endmethod
+$
+
+_pragma(classify_level=advanced)
+_method wmc_object_editor_field_lister.start_refresh()
+	## 
+	## start the refresh thread
+
+	_if .refresh_thread _is _unset 
+	_then
+		.refresh_thread << _proc (me)
+					  
+					   # Catch any warnings
+					   _handling warning, information _with _proc( cond)
+						# Report message on server and continue
+						cond.report_on( !terminal!)
+					   _endproc
+
+					   # Catch errors
+					   _catch @refresh_error
+						   _handling error _with _proc( cond)
+							!traceback!( !terminal!)
+							_throw @refresh_error
+						   _endproc
+
+						   me.refresh_loop()
+					   _endcatch
+				   _endproc.fork_at(_thisthread.vm_priority, _self)
+
+	_endif
+	
+_endmethod
+$
+
+_pragma(classify_level=advanced)
+_method wmc_object_editor_field_lister.refresh_loop()
+	## 
+	## the refresh loop
+	
+	_loop
+		_if (co << _self.editor.current_object) _isnt _unset 
+		_then   
+			st << ( co.refresh_feq.default(10) )*1000
+			_self.redraw_canvas()
+		_endif
+
+		#write("co = ", co, %tab, "st = ", st)
+		_thisthread.sleep(st)
+	_endloop
+	
+_endmethod
+$
+
+_pragma(classify_level=advanced)
+_method wmc_object_editor_field_lister.note_change( who, aspect, _gather data )
+	## 
+	## start or kill the thread when thing changes.
+	##
+
+	#show(who, "note_change()", _self, aspect, _scatter data )
+	_super.note_change( who, aspect,  _scatter data )
+
+	_if (co << _self.editor.current_object) _isnt _unset 
+	_then
+		_self.start_refresh()
+	_else
+		_if .refresh_thread _isnt _unset
+		_then
+			.refresh_thread.kill()
+			.refresh_thread << _unset 
+		_endif
+
+		.webcam_canvas.clear()
+	_endif
+	
+_endmethod
+$

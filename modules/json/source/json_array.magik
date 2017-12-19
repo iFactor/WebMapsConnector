@@ -1,0 +1,71 @@
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+#% text_encoding = cp1252
+_package sw
+$
+_pragma(classify_level=basic)
+## simply a subclass of rope.
+def_slotted_exemplar(:json_array,{},{:rope})
+$
+_pragma(classify_level=basic)
+_method json_array.write_as_json(out_stream)
+	## write_as_json(output_stream OUT_STREAM) : _unset
+	##
+	## writes self out to OUT_STREAM
+
+	out_stream.write("[")
+
+	_local first? << _true
+
+	_for i_val _over _self.fast_elements()
+	_loop
+		_if _not first?
+		_then
+			out_stream.write(",")
+		_else 
+			first? << _false
+		_endif
+
+		i_val.write_as_json(out_stream)
+	_endloop
+	
+	out_stream.write("]")
+
+_endmethod
+$
+_pragma(classify_level=basic)
+_method json_array.new_from(a_collection)
+
+	_local result << _self.new()
+	
+	_for i _over a_collection.fast_elements()
+	_loop
+		result.add_last(i.convert_to_json())
+	_endloop
+
+	_return result
+_endmethod
+$
+_pragma(classify_level=basic)
+_method json_array.convert_to_json()
+	_return _self 
+_endmethod
+$
+

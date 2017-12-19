@@ -1,0 +1,143 @@
+#% text_encoding = iso8859_1
+##-----------------------------------------------------------------------------------------------
+## Web Maps Connector (which shows web maps as layers in Smallworld(TM) Core Spatial Technology)
+## Copyright (C) 2017 KUBRA
+##
+## This program is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http:##www.gnu.org/licenses/>.
+##
+## You may contact KUBRA at https://kubra.com/contact-us/
+##-----------------------------------------------------------------------------------------------
+
+# ************************************************************ 
+#							       
+# (c) 2005-2006 General Electric Company. All Rights Reserved. 
+#							       
+# ************************************************************ 
+_package sw
+
+_pragma(classify_level=advanced)
+##
+## An in-memory labelled world.
+##
+## Transient geometries can be labelled with a pseudo_world,
+## which will handle world transforms.
+##
+## Note that a pseudo_world does not keep hold of the
+## geometries it is labelled with.  Thus its geometry set is
+## empty.  However, .includes_geometry?() will return _true if
+## the given geometry has been labelled with that pseudo_world.
+##
+def_slotted_exemplar(:pseudo_world,
+                     {
+			     {:coordinate_system, _unset },
+			     {:cached_transforms, _unset } 
+		     },
+		     :labelled_world_mixin )	
+$
+
+
+_pragma(classify_level=basic)
+##
+## _self's coordinate system
+##
+pseudo_world.define_slot_access(:coordinate_system, :read)
+$
+
+
+_pragma(classify_level=restricted)
+##
+## Cached world transforms - required by labelled_world_mixin.
+##
+pseudo_world.define_slot_access(:cached_transforms, :write, :private )
+$
+
+
+_pragma(classify_level=basic)
+_method pseudo_world.new(a_coordinate_system)
+
+	## Return a pseudo_world labelled with A_COORDINATE_SYSTEM.
+	
+	>> _clone.init(a_coordinate_system)
+_endmethod
+$
+
+
+_pragma(classify_level=restricted)
+_private _method pseudo_world.init(a_coordinate_system)
+
+	## Initialises slots.
+	
+	.coordinate_system << a_coordinate_system
+
+	>> _self 
+_endmethod
+$
+
+
+_pragma(classify_level=advanced)
+_method pseudo_world.unit_factor
+
+        ## The nominal size of one unit in SELF, in millimetres.
+
+	_if .coordinate_system _isnt _unset 
+	_then
+		_return .coordinate_system.unit_factor
+	_else
+		_return 1.0
+	_endif
+_endmethod
+$
+
+
+_pragma(classify_level=advanced)
+_method pseudo_world.equals?(a_world)
+
+	## Whether A_WORLD is the same world as _self.
+
+	>> _self _is a_world
+_endmethod
+$
+
+
+_pragma(classify_level=advanced)
+_method pseudo_world.append(a_world)
+
+	## Return A_WORLD.
+	#
+	# _self is not kept as a pseudo_world does not hold geometries.
+
+	>> a_world
+_endmethod
+$
+
+
+_pragma(classify_level=basic)
+_method pseudo_world.includes_geometry?(a_geometry)
+	
+	## True if A_GEOMETRY is labelled with _self.
+
+	_return a_geometry.responds_to?(:world) _andif
+		(geom_world << a_geometry.world) _isnt _unset _andif 
+		geom_world.equals?(_self)
+_endmethod
+$
+_pragma(classify_level=restricted)
+_method pseudo_world.note_change(who, aspect _gather data)
+	##
+	## Resolution of conflict note_change method
+	## 
+	_super(labelled_world_mixin).note_change(who, aspect _scatter data)
+_endmethod
+$
+

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?><?xml-stylesheet type='text/xsl' href='_UpgradeReport_Files/UpgradeReport.xslt'?><UpgradeLog>
+<Properties><Property Name="Solution" Value="sw_dotnet_acp">
+</Property><Property Name="Solution File" Value="C:\Users\brad.sileo\Programming\SF\mclib_working\core_40_swaf\modules\sw_dotnet_acp\csharp\sw_dotnet_acp\sw_dotnet_acp.sln">
+</Property><Property Name="User Options File" Value="C:\Users\brad.sileo\Programming\SF\mclib_working\core_40_swaf\modules\sw_dotnet_acp\csharp\sw_dotnet_acp\sw_dotnet_acp.suo">
+</Property><Property Name="Date" Value="Thursday, December 18, 2008">
+</Property><Property Name="Time" Value="14:29 PM">
+</Property></Properties><Event ErrorLevel="0" Project="" Source="sw_dotnet_acp.sln" Description="File successfully backed up as C:\Users\brad.sileo\Programming\SF\mclib_working\core_40_swaf\modules\sw_dotnet_acp\csharp\sw_dotnet_acp_old\Backup\sw_dotnet_acp.sln">
+</Event><Event ErrorLevel="0" Project="" Source="sw_dotnet_acp.suo" Description="File successfully backed up as C:\Users\brad.sileo\Programming\SF\mclib_working\core_40_swaf\modules\sw_dotnet_acp\csharp\sw_dotnet_acp_old\Backup\sw_dotnet_acp.suo">
+</Event><Event ErrorLevel="0" Project="sw_dotnet_acp" Source="sw_dotnet_acp\sw_dotnet_acp.csproj" Description="Project file successfully backed up as C:\Users\brad.sileo\Programming\SF\mclib_working\core_40_swaf\modules\sw_dotnet_acp\csharp\sw_dotnet_acp_old\Backup\sw_dotnet_acp\sw_dotnet_acp.csproj">
+</Event><Event ErrorLevel="0" Project="sw_dotnet_acp" Source="sw_dotnet_acp\Program.cs" Description="File successfully backed up as C:\Users\brad.sileo\Programming\SF\mclib_working\core_40_swaf\modules\sw_dotnet_acp\csharp\sw_dotnet_acp_old\Backup\sw_dotnet_acp\Program.cs">
+</Event><Event ErrorLevel="0" Project="sw_dotnet_acp" Source="sw_dotnet_acp\Properties\AssemblyInfo.cs" Description="File successfully backed up as C:\Users\brad.sileo\Programming\SF\mclib_working\core_40_swaf\modules\sw_dotnet_acp\csharp\sw_dotnet_acp_old\Backup\sw_dotnet_acp\Properties\AssemblyInfo.cs">
+</Event><Event ErrorLevel="0" Project="sw_dotnet_acp" Source="sw_dotnet_acp\sw_dotnet_acp.csproj" Description="Project converted successfully">
+</Event><Event ErrorLevel="3" Project="sw_dotnet_acp" Source="sw_dotnet_acp\sw_dotnet_acp.csproj" Description="Converted">
+</Event><Event ErrorLevel="0" Project="sw_dotnet_lib_acp" Source="sw_dotnet_lib_acp\sw_dotnet_lib_acp.csproj" Description="Project file successfully backed up as C:\Users\brad.sileo\Programming\SF\mclib_working\core_40_swaf\modules\sw_dotnet_acp\csharp\sw_dotnet_acp_old\Backup\sw_dotnet_lib_acp\sw_dotnet_lib_acp.csproj">
+</Event><Event ErrorLevel="0" Project="sw_dotnet_lib_acp" Source="sw_dotnet_lib_acp\Properties\AssemblyInfo.cs" Description="File successfully backed up as C:\Users\brad.sileo\Programming\SF\mclib_working\core_40_swaf\modules\sw_dotnet_acp\csharp\sw_dotnet_acp_old\Backup\sw_dotnet_lib_acp\Properties\AssemblyInfo.cs">
+</Event><Event ErrorLevel="0" Project="sw_dotnet_lib_acp" Source="sw_dotnet_lib_acp\SWACP.cs" Description="File successfully backed up as C:\Users\brad.sileo\Programming\SF\mclib_working\core_40_swaf\modules\sw_dotnet_acp\csharp\sw_dotnet_acp_old\Backup\sw_dotnet_lib_acp\SWACP.cs">
+</Event><Event ErrorLevel="0" Project="sw_dotnet_lib_acp" Source="sw_dotnet_lib_acp\sw_dotnet_lib_acp.csproj" Description="Project converted successfully">
+</Event><Event ErrorLevel="3" Project="sw_dotnet_lib_acp" Source="sw_dotnet_lib_acp\sw_dotnet_lib_acp.csproj" Description="Converted">
+</Event><Event ErrorLevel="0" Project="" Source="sw_dotnet_acp.sln" Description="Solution converted successfully">
+</Event><Event ErrorLevel="3" Project="" Source="sw_dotnet_acp.sln" Description="Converted">
+</Event><Event ErrorLevel="0" Project="sw_dotnet_acp" Source="sw_dotnet_acp\sw_dotnet_acp.csproj" Description="Scan complete: Upgrade not required for project files.">
+</Event><Event ErrorLevel="0" Project="sw_dotnet_lib_acp" Source="sw_dotnet_lib_acp\sw_dotnet_lib_acp.csproj" Description="Scan complete: Upgrade not required for project files.">
+</Event></UpgradeLog>
